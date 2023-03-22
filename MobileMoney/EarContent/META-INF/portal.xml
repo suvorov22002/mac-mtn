@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afb-portal>
+	<module>
+		<code>MoMo-06</code>
+		<title>Mobile Money</title>
+		<description>Mobile Account Connected</description>
+		<earName>MobileMoney.ear</earName>
+		<date>26/05/2014</date>
+		<version>1.0</version>
+		<image>MoMo_icon.jpg</image>
+		<developer>Francis DJIOMOU</developer>
+		<address>francis_djiomou@afrilandfirstbank.com</address>
+		<context-root>MobileMoney</context-root>
+	</module>
+</afb-portal>

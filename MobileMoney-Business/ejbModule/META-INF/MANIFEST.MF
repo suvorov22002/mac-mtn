@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Class-Path: JPersistenceUtils-V2.jar 
+ MobileMoney-Client.jar 
+ MobileMoney-DAO.jar 
+ MobileMoney-JPA.jar
+

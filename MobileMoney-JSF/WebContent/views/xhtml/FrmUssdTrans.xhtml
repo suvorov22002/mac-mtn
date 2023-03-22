@@ -1,0 +1,183 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#trans-contain { overflow-y:scroll; height:380px; width: 870px; margin: 0px 0; }
+		div#trans-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#trans-contain table td, div#trans-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeFrmUssdTrans" reRender="#{frmUssdTrans.areaToRender}" immediate="true" action="#{frmUssdTrans.close}" />
+	
+	<script>
+
+		$( "#dialog-trans" ).dialog({
+			autoOpen: true,
+			width: 900,
+			close: function() {
+				closeFrmUssdTrans();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-trans" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-trans" title="#{frmUssdTrans.title}">
+
+	<fieldset><legend>Recherche</legend>
+		<h:panelGrid columns="12">
+		
+			<h:outputText  value="Du :" />
+			<h:inputText class="text" value="#{frmUssdTrans.txtDateDeb}" style="width:70px">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Au :" />
+			<h:inputText class="text" value="#{frmUssdTrans.txtDateFin}" style="width:70px">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Opération :" />
+			<h:selectOneMenu value="#{frmUssdTrans.selectedTypOp}" class="text">
+				<f:selectItems value="#{frmUssdTrans.typOpItem}"/>
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:selectOneMenu>
+			
+			<h:outputText  value="Téléphone :" />
+			<h:inputText class="text" value="#{frmUssdTrans.searchPhone}" style="width:70px" maxlength="12" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Process :" rendered="false" />
+			<h:selectOneMenu value="#{frmUssdTrans.selectedTypStatus}" class="text" rendered="false">
+				<f:selectItems value="#{frmUssdTrans.typStatusItem}"/>
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:selectOneMenu>
+			
+			<h:outputText  value="Statut :" />
+			<h:selectOneMenu value="#{frmUssdTrans.selectedTypProcess}" class="text">
+				<f:selectItems value="#{frmUssdTrans.typProcessItem}"/>
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:selectOneMenu>
+			
+			<rich:spacer width="5px" />
+			<a4j:commandButton rendered="#{userHabilitation.btnFilterUSSDTransactionEnabled}" value="Rechercher" action="#{frmUssdTrans.filterTransactions}" immediate="true" reRender="gridUssdTrans, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		</h:panelGrid>
+	</fieldset>
+		
+	<fieldset><legend>Liste des Transactions USSD</legend>
+	
+	<div id="trans-contain">
+		<h:dataTable id="gridUssdTrans" value="#{frmUssdTrans.list}" var="trans" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value=" " /></f:facet>
+				<h:selectBooleanCheckbox value="#{trans.selected}" disabled="#{!trans.areconcilier}">
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:selectBooleanCheckbox>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N°" /></f:facet>
+				<h:outputText value="#{frmUssdTrans.num}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N° Téléphone" /></f:facet>
+				<h:outputText value="#{trans.str_Phone}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+				
+			<h:column>
+				<f:facet name="header"><h:outputText value="Client" /></f:facet>
+				<h:outputText value="#{trans.subscriber.customerName}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Opération" /></f:facet>
+				<h:outputText value="#{trans.typeOperation.value}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date" /></f:facet>
+				<h:outputText value="#{trans.formattedDate}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Montant" /></f:facet>
+				<h:outputText value="#{trans.int_Amount}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" >
+					<f:convertNumber integerOnly="true"></f:convertNumber>
+				</h:outputText>
+			</h:column>
+				
+			<h:column>
+				<f:facet name="header"><h:outputText value="Message" /></f:facet>
+				<h:outputText value="#{trans.str_Status_Description}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="ID Trans" /></f:facet>
+				<h:outputText value="#{trans.lg_Remote_ID}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Process" /></f:facet>
+				<h:outputText value="#{trans.str_Status}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Statut" /></f:facet>
+				<h:outputText value="#{trans.str_Step}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="A Réconcilier ?" /></f:facet>
+				<h:outputText value="#{trans.areconcilier ? 'Oui' : 'Non'}" style="color:#{trans.ok ? 'blue' : (trans.areconcilier ? 'red' : 'black')}" />
+			</h:column>
+			
+		</h:dataTable>
+		</div>
+	</fieldset>
+	
+	<fieldset><legend>-</legend>
+		<h:panelGrid id="pnlCommands" columns="7">
+			<a4j:commandButton rendered="#{userHabilitation.btnExecuteReconciliationEnabled}" value="Reconciliation Auto" title="Reconciliation Auto" action="#{frmUssdTrans.executerReconciliation}" immediate="true" reRender="gridUssdTrans, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+			<a4j:commandButton rendered="true" value="Annuler" title="" action="#" immediate="true" reRender="pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+		    <a4j:commandButton rendered="#{userHabilitation.btnModifierConfigurationEnabled}" value="Start Reconciliation Auto" title="Start Reconciliation Auto" action="#{frmUssdTrans.processReconciliationAuto}" immediate="true" reRender="gridUssdTrans, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		    <rich:spacer width="3px" />
+		    <a4j:commandButton rendered="#{userHabilitation.btnModifierConfigurationEnabled}" value="Stop Reconciliation Auto" title="Stop Reconciliation Auto" action="#{frmUssdTrans.StopReconciliationAuto}" immediate="true" reRender="gridUssdTrans, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		</h:panelGrid>
+	</fieldset>
+	
+</div>
+
+
+</h:form>
+
+
+
+
+</rich:panel>
+
+</f:subview>

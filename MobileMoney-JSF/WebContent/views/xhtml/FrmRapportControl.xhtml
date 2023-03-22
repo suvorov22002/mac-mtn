@@ -1,0 +1,191 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<h:form>
+
+	<style>
+		div#ctrl-contain { overflow-y:scroll; height:180px; width: 600px; margin: 0px 0; }
+		div#ctrl-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#ctrl-contain table td, div#ctrl-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	
+<script type="text/javascript">
+
+	$( "#dialog-ctrl" ).dialog({
+		autoOpen: true,
+		width: 650,
+		close: function() {
+			closeEC();
+		}
+	});
+	
+	$(function() {
+		$( "#dialog-ctrl" ).dialog({
+			autoOpen: false,
+			show: {
+				effect: "scale",
+				duration: 1000
+			},
+			hide: {
+				effect: "explode",
+				duration: 1000
+			}
+		});
+
+	});
+	
+</script>
+
+
+<div id="dialog-ctrl" title="Rapport de Contrôle des écritures comptable MAC MTN du  #{frmTransactions.formRapportOpen ? frmTransactions.formattedDateRapport : frmTFJO.formattedDateRapport} postés dans le Core Banking">
+	
+		
+	<fieldset><legend> <h:outputText value="Contrôle de l'équilibre des transactions postées" /> </legend>
+	
+	<div id="ctrl-contain">
+		<h:dataTable id="gridEquil" value="#{ frmTransactions.formRapportOpen ? frmTransactions.equilibre : frmTFJO.equilibre}" var="equi" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="dco" /></f:facet>
+				<h:outputText value="#{equi.formattedDco}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="uti" /></f:facet>
+				<h:outputText value="#{equi.uti}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="sen" /></f:facet>
+				<h:outputText value="#{equi.sen}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="nbre" /></f:facet>
+				<h:outputText value="#{equi.nbre}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="total" /></f:facet>
+				<h:outputText value="#{equi.formattedMon}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="ope" /></f:facet>
+				<h:outputText value="#{equi.ope}" />
+			</h:column>
+			
+		</h:dataTable>
+	</div>
+	</fieldset>
+	
+	<h:panelGrid id="pnlInfoTotaux" rendered="#{frmTFJO.formRapportOpen}" columns="8">
+		<h:outputText value="Nbre d'abon. comptabilisés:" />
+		<h:inputText value="#{frmTFJO.nbAbo}" readonly="true" style="width:40px" />
+		<h:outputText value="Total des commissions comptabilisés:" />
+		<h:inputText value="#{frmTFJO.formattedMntComs}" readonly="true" style="width:100px" />
+		<h:outputText value="Total des Taxes:" />
+		<h:inputText value="#{frmTFJO.formattedMntTaxes}" readonly="true" style="width:100px" />
+	</h:panelGrid>
+	
+	<fieldset><legend> <h:outputText value="Contrôle de l'équilibre des comptes" /> </legend>
+	
+	<div id="ctrl-contain">
+		<h:dataTable id="gridCptes" value="#{ frmTransactions.formRapportOpen ? frmTransactions.equilibreCptes : frmTFJO.equilibreCptes}" var="equiCpte" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="Comptes" /></f:facet>
+				<h:outputText value="#{equiCpte.typeCpte}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="nbre PULL" /></f:facet>
+				<h:outputText value="#{equiCpte.nbrePull}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="Montant PULL" /></f:facet>
+				<h:outputText value="#{equiCpte.formattedMonPull}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="nbre PUSH" /></f:facet>
+				<h:outputText value="#{equiCpte.nbrePush}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="Montant PUSH" /></f:facet>
+				<h:outputText value="#{equiCpte.formattedMonPush}" />
+			</h:column>
+						
+		</h:dataTable>
+	</div>
+	</fieldset>	
+	
+	<fieldset><legend> <h:outputText value="Liste des écritures en doublon" /> </legend>
+	
+	<div id="ctrl-contain">
+		<h:dataTable id="gridDoubl" value="#{frmTransactions.formRapportOpen ? frmTransactions.doublon : frmTFJO.doublon }" var="dou" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="age" /></f:facet>
+				<h:outputText value="#{dou.age}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="dev" /></f:facet>
+				<h:outputText value="#{dou.dev}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="eve" /></f:facet>
+				<h:outputText value="#{dou.eve}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="lib" /></f:facet>
+				<h:outputText value="#{dou.lib}" />
+			</h:column>
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="mon" /></f:facet>
+				<h:outputText value="#{dou.mon}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="ncp" /></f:facet>
+				<h:outputText value="#{dou.ncp}" />
+			</h:column>
+			<h:column>
+				<f:facet name="header"><h:outputText value="ope" /></f:facet>
+				<h:outputText value="#{dou.ope}" />
+			</h:column>
+			<h:column>
+				<f:facet name="header"><h:outputText value="pie" /></f:facet>
+				<h:outputText value="#{dou.pie}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="sen" /></f:facet>
+				<h:outputText value="#{dou.sen}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="nbre" /></f:facet>
+				<h:outputText value="#{dou.nbre}" />
+			</h:column>
+			
+		</h:dataTable>
+	</div>
+	</fieldset>
+	
+</div>
+
+</h:form>
+
+</f:subview>

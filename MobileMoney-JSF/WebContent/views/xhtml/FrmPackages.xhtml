@@ -1,0 +1,173 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+	xmlns:h="http://java.sun.com/jsf/html"
+	xmlns:f="http://java.sun.com/jsf/core"
+	xmlns:ui="http://java.sun.com/jsf/facelets"
+	xmlns:rich="http://richfaces.org/rich"
+	xmlns:a4j="http://richfaces.org/a4j">
+
+	<rich:panel styleClass="client-panel-body">
+		<h:form prependId="false">
+
+			<style>
+				div#package-contain {
+					overflow-y: scroll;
+					height: 300px;
+					width: 550px;
+					margin: 0px 0;
+				}
+				
+				div#package-contain table {
+					margin: 1em 0;
+					border-collapse: collapse;
+					width: 100%;
+				}
+				
+				div#package-contain table td, div#package-contain table th {
+					border: 1px solid #eee;
+					padding: .2em 2px;
+					text-align: left;
+				}
+			</style>
+
+			<a4j:jsFunction name="closeFrmPackages"
+				reRender="#{frmPackages.areaToRender}" immediate="true"
+				action="#{frmPackages.close}" />
+
+			<script>
+
+				$( "#dialog-package" ).dialog({
+					autoOpen: true,
+					width: 600,
+					close: function() {
+						closeFrmPackages();
+					}
+				});
+				
+				$(function() {
+					$( "#dialog-package" ).dialog({
+						autoOpen: false,
+						show: {
+							effect: "scale",
+							duration: 1000
+						},
+						hide: {
+							effect: "explode",
+							duration: 1000
+						}
+					});
+		
+				});
+			</script>
+
+			<div id="dialog-package" title="#{frmPackages.title}">
+
+				<fieldset>
+					<legend>Mise à jour Resiliations / Abonnements</legend>
+
+					<h:panelGrid id="pnlPackage" columns="3">
+
+						<a4j:commandButton
+							rendered="#{userHabilitation.menuSouscriptionEnabled}"
+							value="Resiliation Veille"
+							action="#{frmPackages.miseAJResiliations}" immediate="true"
+							reRender="pnlMsg"
+							styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+							onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+						
+						<rich:spacer width="50px" />
+						<a4j:commandButton
+							rendered="#{userHabilitation.menuSouscriptionEnabled}"
+							value="Abonnement Veille" 
+							action="#{frmPackages.miseAJAbonnements}" immediate="true"
+							reRender="pnlMsg"
+							styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+							onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+
+					</h:panelGrid>
+				</fieldset>
+
+				<fieldset>
+					<legend>Recherche</legend>
+
+					<h:panelGrid columns="8" cellspacing="2" cellpadding="2">
+
+						<h:outputText value="Du :" style="font-weight:bold;" />
+						<h:inputText class="text" value="#{frmPackages.txtDateDeb}" style="width:70px">
+							<a4j:support event="onchange" ajaxSingle="true" />
+						</h:inputText>
+
+						<h:outputText value="Au :" style="font-weight:bold;" />
+						<h:inputText class="text" value="#{frmPackages.txtDateFin}" style="width:70px">
+							<a4j:support event="onchange" ajaxSingle="true" />
+						</h:inputText>
+						
+						<h:outputText  value="Operation:" />
+						<h:selectOneMenu value="#{frmPackages.operation}" class="text">
+							<f:selectItems value="#{frmPackages.statutItems}"/>
+							<a4j:support event="onchange" ajaxSingle="true" />
+						</h:selectOneMenu>
+			
+						<rich:spacer width="3px" />
+						<a4j:commandButton
+							rendered="#{userHabilitation.menuSouscriptionEnabled}"
+							value="Rechercher" action="#{frmPackages.filterResiliations}"
+							immediate="true" reRender="gridPackages, pnlMsg"
+							styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+							onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+
+					</h:panelGrid>
+
+
+					<div id="package-contain">
+						<h:dataTable id="gridPackages"
+							value="#{frmPackages.listTraces}" var="var"
+							styleClass="ui-widget ui-widget-content"
+							headerClass="ui-widget-header"
+							rowClasses="row-style-pair, row-style-impair">
+
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Num" />
+								</f:facet>
+								<h:outputText value="#{frmPackages.num}" />
+							</h:column>
+
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Date Time" />
+								</f:facet>
+								<h:outputText value="#{var.dateResiliation}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Client" />
+								</f:facet>
+								<h:outputText value="#{var.customerId}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Utilisateur" />
+								</f:facet>
+								<h:outputText value="#{var.uti}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Type" />
+								</f:facet>
+								<h:outputText value="#{var.typeResiliation}" />
+							</h:column>
+		
+						</h:dataTable>
+
+					</div>
+
+				</fieldset>
+			</div>
+		</h:form>
+
+	</rich:panel>
+
+</f:subview>

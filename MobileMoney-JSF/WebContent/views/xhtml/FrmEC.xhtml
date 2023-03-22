@@ -1,0 +1,152 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<h:form>
+
+<a4j:jsFunction name="closeEC" reRender="pnlEC" immediate="true" action="#{frmTransactions.closeEC}" />
+
+	<style>
+		div#ec-contain { overflow-y:scroll; height:380px; width: 830px; margin: 0px 0; }
+		div#ec-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#ec-contain table td, div#ec-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	
+<script type="text/javascript">
+
+	$( "#dialog-ec" ).dialog({
+		autoOpen: true,
+		width: 850,
+		close: function() {
+			closeEC();
+		}
+	});
+	
+	$(function() {
+		$( "#dialog-ec" ).dialog({
+			autoOpen: false,
+			show: {
+				effect: "scale",
+				duration: 1000
+			},
+			hide: {
+				effect: "explode",
+				duration: 1000
+			}
+		});
+
+	});
+	
+</script>
+
+
+<div id="dialog-ec" title="Ecritures Comptables">
+	
+		
+	<fieldset><legend>Ecritures comptables des transactions selectionnees</legend>
+	
+	<div id="ec-contain">
+		<h:dataTable id="gridEC" value="#{frmTransactions.ecritures}" var="ec" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="N°" /></f:facet>
+				<h:outputText value="#{frmTransactions.numEC}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="eve" /></f:facet>
+				<h:outputText value="#{ec.eve}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N° Mvt" /></f:facet>
+				<h:outputText value="#{ec.mvti}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Agence" /></f:facet>
+				<h:outputText value="#{ec.age}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date Comptable" /></f:facet>
+				<h:outputText value="#{ec.formattedDCO}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Libellé" /></f:facet>
+				<h:outputText value="#{ec.lib}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Sens" /></f:facet>
+				<h:outputText value="#{ec.sen}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N° de Cpte" /></f:facet>
+				<h:outputText value="#{ec.ncp}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Montant" /></f:facet>
+				<h:outputText value="#{ec.formattedMon}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Nature" /></f:facet>
+				<h:outputText value="#{ec.nat}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="ope" /></f:facet>
+				<h:outputText value="#{ec.ope}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Etat" /></f:facet>
+				<h:outputText value="#{ec.eta}" />
+			</h:column>
+			
+		</h:dataTable>
+	</div>
+	</fieldset>
+	
+	<fieldset><legend><h:outputText value="Synthèse" /></legend>
+		<h:panelGrid columns="7">
+		
+			<h:outputText value="Total Débit :" />
+			<rich:spacer width="5px" />
+			<h:inputText value="#{frmTransactions.totalDebit}" readonly="true" class="text" />
+			
+			<rich:spacer width="5px" />
+			
+			<h:outputText value="Total Crédit :" />
+			<rich:spacer width="5px" />
+			<h:inputText value="#{frmTransactions.totalCredit}" readonly="true" class="text" />
+			
+			<!-- 
+			<rich:spacer width="5px" />
+			
+			<h:outputText value="Total Commissions :" />
+			<rich:spacer width="5px" />
+			<h:inputText value="#{frmTransactions}" readonly="true" class="text" />
+			
+			<rich:spacer width="5px" />
+			
+			<h:outputText value="Total Taxes :" />
+			<rich:spacer width="5px" />
+			<h:inputText value="#{frmTransactions}" readonly="true" class="text" />
+			 -->
+		</h:panelGrid>
+	</fieldset>		
+	
+</div>
+
+</h:form>
+
+</f:subview>

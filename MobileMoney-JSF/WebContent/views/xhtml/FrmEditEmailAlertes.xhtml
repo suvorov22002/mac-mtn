@@ -1,0 +1,99 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+	<rich:panel styleClass="client-panel-body">
+		<h:form prependId="false">
+	
+			<style>
+				div#emails-contain { overflow-y:scroll; height:250px; width: 400px; margin: 0px 0; }
+				div#emails-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+				div#emails-contain table td, div#emails-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+			</style>
+			
+			<a4j:jsFunction name="closeEditEmailAlertes" reRender="#{frmParametreAlertes.frmEditEmailAlertesName}" immediate="true" action="#{frmParametreAlertes.closeEditEmailAlertes}" />
+			
+			<script>
+		
+				$( "#dialog-EditEmailAlertes" ).dialog({
+					autoOpen: true,
+					modal: true,
+					width: 450,
+					close: function() {
+						closeEditEmailAlertes();
+					}
+				});
+				
+				$(function() {
+					$( "#dialog-EditEmailAlertes" ).dialog({
+						autoOpen: false,
+						show: {
+							effect: "scale",
+							duration: 1000
+						},
+						hide: {
+							effect: "explode",
+							duration: 1000
+						}
+					});
+		
+				});
+			</script>
+	
+			<div id="dialog-EditEmailAlertes" title="Edition Emails Alerte Agence #{frmParametreAlertes.selectedParamAlerte.codeAgence} [#{frmParametreAlertes.selectedParamAlerte.nomAgence}]">
+				
+				<fieldset><legend>Ajouter un email d'alerte </legend>
+					<h:panelGrid id="gridEmail" columns="5">
+						<h:outputText  value="Email :" />
+						<rich:spacer width="5px" />
+						<h:inputText class="text" value="#{frmParametreAlertes.email}" style="width:180px" >
+							<a4j:support event="onchange" ajaxSingle="true" />
+						</h:inputText>
+						<rich:spacer width="5px" />
+						<a4j:commandButton value="Ajouter" action="#{frmParametreAlertes.addEmailAlertes}" immediate="true" reRender="gridEmail, gridEmails, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all"/>
+					</h:panelGrid>	
+				</fieldset>	
+				
+				<fieldset><legend>Liste des emails</legend>
+					<h:panelGrid id="gridEmails" columns="1">
+																		
+						<h:dataTable id="emails-contain" value="#{frmParametreAlertes.selectedParamAlerte.emails}" var="email" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+							<h:column>
+								<f:facet name="header"><h:outputText value="Email(s)" /></f:facet>
+								<h:outputText value="#{email}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header"><h:outputText value="Supprimer" /></f:facet>
+								<h:graphicImage value="/views/img/del16x.png" title="Supprimer l'adresse mail" style="cursor:pointer" >
+					           		<a4j:support event="onclick" reRender="pnlMsg, gridEmails" ajaxSingle="true" >
+					           			<f:setPropertyActionListener target="#{frmParametreAlertes.selectedEmail}" value="#{email}" />
+					           		</a4j:support>
+								</h:graphicImage>
+							</h:column>
+							
+						</h:dataTable>
+									
+					</h:panelGrid>
+					
+				</fieldset>
+					
+				<fieldset><legend></legend>
+					
+					<div align="right">
+						<h:panelGrid columns="2" >
+							<a4j:commandButton value="Valider" action="#{frmParametreAlertes.updateParametreAlertes}" immediate="true" reRender="gridParametres, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+						</h:panelGrid>
+					</div>
+					
+				</fieldset>
+						
+			</div>
+			
+		</h:form>
+	</rich:panel>
+
+</f:subview>

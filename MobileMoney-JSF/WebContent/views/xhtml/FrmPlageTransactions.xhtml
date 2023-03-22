@@ -1,0 +1,167 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#souscrips-contain { overflow-y:scroll; height:380px; width: 970px; margin: 0px 0; }
+		div#souscrips-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#souscrips-contain table td, div#souscrips-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closefrmPlageTransactions" reRender="#{frmPlageTransactions.areaToRender}" immediate="true" action="#{frmPlageTransactions.close}" />
+	
+	<script>
+
+		$( "#dialog-frmPlageTransactions" ).dialog({
+			autoOpen: true,
+			width: 1000,
+			close: function() {
+				closefrmPlageTransactions();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-frmPlageTransactions" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-frmPlageTransactions" title="#{frmPlageTransactions.title}">
+
+	<fieldset><legend></legend>
+		<h:panelGrid columns="4" >
+			<a4j:commandButton value="Ajouter" action="#{frmPlageTransactions.processAdd}" immediate="true" reRender="gridSouscriptions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="10 "/>
+			<a4j:commandButton value="Enregister" action="#{frmPlageTransactions.savePamareters}" immediate="true" reRender="gridSouscriptions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		</h:panelGrid>
+	</fieldset>
+			
+	<fieldset><legend>Liste des Profils </legend>
+	
+	<div id="souscrips-contain">
+		<h:dataTable id="gridSouscriptions" value="#{frmPlageTransactions.plages}" var="sous" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+					
+			<h:column>
+				<f:facet name="header"><h:outputText value="Libelle" /></f:facet>
+				<h:inputText value="#{sous.profilName}" >
+				<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPullAmount" /></f:facet>
+				<h:inputText value="#{sous.maxPullAmount}" maxlength="15" onkeypress="controleChiffres(event)"> 
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPushAmount" /></f:facet>
+				<h:inputText value="#{sous.maxPushAmount}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="commissions" /></f:facet>
+				<h:inputText value="#{sous.commissions}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPullAmountDay" /></f:facet>
+				<h:inputText value="#{sous.maxPullAmountDay}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPushAmountDay" /></f:facet>
+				<h:inputText value="#{sous.maxPushAmountDay}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPullAmountWeek" /></f:facet>
+				<h:inputText value="#{sous.maxPullAmountWeek}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPushAmountWeek" /></f:facet>
+				<h:inputText value="#{sous.maxPushAmountWeek}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPullAmountMonth" /></f:facet>
+				<h:inputText value="#{sous.maxPullAmountMonth}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="maxPushAmountMonth" /></f:facet>
+				<h:inputText value="#{sous.maxPushAmountMonth}" maxlength="15" onkeypress="controleChiffres(event)" >
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="ncpDAPPush" maxlength="20" title="Format: xxxxx-xxxxxxxxxxx-xx" /></f:facet>
+				<h:inputText value="#{sous.ncpDAPPush}" >
+				<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="ncpDAPPull" maxlength="20" title="Format: xxxxx-xxxxxxxxxxx-xx" /></f:facet>
+				<h:inputText value="#{sous.ncpDAPPull}" >
+				<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="numCompteMTN" maxlength="20" title="Format: xxxxx-xxxxxxxxxxx-xx" /></f:facet>
+				<h:inputText value="#{sous.numCompteMTN}" >
+				<a4j:support event="onchange" ajaxSingle="true" />
+				</h:inputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Actif" /></f:facet>
+				<h:selectBooleanCheckbox value="#{sous.active}" />
+			</h:column>
+								
+		</h:dataTable>
+		</div>
+	</fieldset>
+	
+</div>
+				
+
+
+</h:form>
+</rich:panel>
+
+</f:subview>

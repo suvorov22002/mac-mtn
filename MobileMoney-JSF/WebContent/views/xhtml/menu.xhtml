@@ -1,0 +1,57 @@
+<f:view xmlns="http://www.w3.org/1999/xhtml"
+        xmlns:h="http://java.sun.com/jsf/html"
+        xmlns:f="http://java.sun.com/jsf/core"
+        xmlns:ui="http://java.sun.com/jsf/facelets"
+        xmlns:rich="http://richfaces.org/rich"
+        xmlns:a4j="http://richfaces.org/a4j">
+	
+	<script>
+	$(function() {
+		$( "#tabs" ).tabs({
+			collapsible: true
+		});
+	});
+		
+	</script>	
+	
+<h:form prependId="false"> 
+	
+	<!-- MENUS SOUS FORME DE TABULATIONS -->
+	<div id="tabs">
+		<ul>
+			<li style="display:#{userHabilitation.menuPullPushEnabled ? 'block' : 'none'}"><a href="#tabs-1">Abonnements</a></li>
+			<li style="display:#{userHabilitation.menuTraitementEnabled ? 'block' : 'none'}"><a href="#tabs-2">Transactions et Traitements</a></li>
+			<li style="display:#{userHabilitation.menuConfigsEnabled ? 'block' : 'none'}"><a href="#tabs-3">Configurations</a></li>
+		</ul>  
+		<div id="tabs-1" style="margin: 2px 2px 2px 2px; padding:0px;">
+			<a4j:commandButton rendered="#{userHabilitation.menuSouscriptionEnabled}" action="#{frmSubscriber.open}" reRender="#{frmSubscriber.areaToRender}" value="Souscriptions"  title="Souscription des clients au Pull/Push from Account" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			<a4j:commandButton rendered="false" action="#{frmModifSouscription.open}" reRender="#{frmModifSouscription.areaToRender}" value="Modifier Contrat"  title="Modifier un contrat de souscription Pull/Push from account" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" /> <!-- rendered="#{userHabilitation.menuModifierContratEnabled}" -->
+			<a4j:commandButton rendered="#{userHabilitation.btnConfimerSouscriptionEnabled}" action="#{frmValidSubscriber.open}" reRender="#{frmValidSubscriber.areaToRender}" value="Valider Souscriptions"  title="Validation Souscription des clients au Pull/Push from Account" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			<a4j:commandButton rendered="#{userHabilitation.btnProfilSouscriptionEnabled}" action="#{frmProfilSubscriber.open}" reRender="#{frmProfilSubscriber.areaToRender}" value="Profil"  title="Attribuer un Profil" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			
+			<a4j:commandButton rendered="#{userHabilitation.menuStatsSouscriptionsEnabled}" action="#{frmSouscriptions.open}" reRender="#{frmSouscriptions.areaToRender}" value="Gestion Souscriptions"  title="Gestion des souscriptions" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" /> 
+			<a4j:commandButton rendered="#{userHabilitation.menuSouscriptionsTempEnabled}" action="#{frmSouscriptionsTemp.open}" reRender="#{frmSouscriptionsTemp.areaToRender}" value="Souscriptions temporaires"  title="Gestion des souscriptions temporaires" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			<a4j:commandButton rendered="#{userHabilitation.menuSouscriptionEnabled}" action="#{frmPackages.open}" reRender="#{frmPackages.areaToRender}" value="Gestion Packages"  title="Gestion des packages" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			
+		</div>
+		<div id="tabs-2" style="margin: 2px 2px 2px 2px; padding:0px;">
+			<a4j:commandButton rendered="#{userHabilitation.menuSimulationEnabled}" action="#{frmSimulation.open}" reRender="#{frmSimulation.areaToRender}" value="Simulations"  title="Simulateur des opérations PULL/PUSH from account" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			<a4j:commandButton rendered="#{userHabilitation.menuStatsTransactionsEnabled}" action="#{frmTransactions.open}" reRender="#{frmTransactions.areaToRender}" value="Stats Transactions"  title="Consulter les transactions des clients" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			<a4j:commandButton rendered="#{userHabilitation.menuUSSDTransEnabled}" value="Transactions USSD" title="Consulter les transactions USSD" action="#{frmUssdTrans.open}" reRender="#{frmUssdTrans.areaToRender}" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			<a4j:commandButton rendered="#{userHabilitation.menuTFJOEnabled}" value="TFJO" title="Comptabilisations pour Traitement de Fin de Journée" action="#{frmTFJO.open}" reRender="#{frmTFJO.areaToRender}" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+			<a4j:commandButton rendered="#{userHabilitation.menuUSSDTransEnabled}" value="Suivi Robot" title="Suivi Robot" action="#{frmSuiviRobot.open}" reRender="#{frmSuiviRobot.areaToRender}" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+		</div>
+		<div id="tabs-3" style="margin: 2px 2px 2px 2px; padding:0px;">
+			<a4j:commandButton rendered="#{userHabilitation.menuConfigsEnabled}" action="#{frmParameters.open}" reRender="#{frmParameters.areaToRender}" value="Configs Système"  title="Configurations Système" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<a4j:commandButton rendered="#{userHabilitation.btnConfigPlageTransactionEnabled}" action="#{frmPlageTransactions.open}" reRender="#{frmPlageTransactions.areaToRender}" value="Configs Profil"  title="Configurations Profils" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<a4j:commandButton rendered="#{userHabilitation.btnConfigAlerteValidationEnabled}" action="#{frmParametreAlertes.open}" reRender="#{frmParametreAlertes.areaToRender}" value="Configs Alertes Validation"  title="Configurations Alertes Validation" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<a4j:commandButton rendered="#{userHabilitation.menuConfigsEnabled}" action="#{frmMAJAbonnements.open}" reRender="#{frmMAJAbonnements.areaToRender}, pnlMsg" value="MAJ Abonnements" title="Mise à Jour des Abonnements" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<a4j:commandButton rendered="#{false}" action="#{frmParameters.majDataFacturation}" reRender="pnlMsg" value="MAJ Données Fact" title="Mise à Jour des données de facturation" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<a4j:commandButton rendered="false" action="#{frmMAJDateFacturation.open}" reRender="#{frmMAJDateFacturation.areaToRender}, pnlMsg" value="MAJ Date Fact" title="Mise à Jour des date de facturation" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<a4j:commandButton rendered="#{userHabilitation.menuConfigsEnabled}" action="#{frmParameters.majECReguls}" reRender="pnlMsg" value="MAJ EC Reguls" title="Mise à Jour des écritures comptables des réguls" immediate="true" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		</div>
+	</div>
+
+</h:form>
+
+</f:view>

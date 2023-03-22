@@ -1,0 +1,114 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#carnets-contain { overflow-y:scroll; height:150px; width: 370px; margin: 0px 0; }
+		div#carnets-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#carnets-contain table td, div#carnets-contain table th { border: 1px solid #eee; padding: .6em 10px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeFrmTypeCarnet" reRender="#{frmTypeCarnet.areaToRender}" immediate="true" action="#{frmTypeCarnet.close}" />
+	
+	<script>
+
+		$( "#dialog-carnet" ).dialog({
+			autoOpen: true,
+			width: 400,
+			close: function() {
+				closeFrmTypeCarnet();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-carnet" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+		
+	</script>
+
+<div id="dialog-carnet" title="#{frmTypeCarnet.title}">
+
+	
+	<fieldset><legend>Edition</legend>
+		<h:panelGrid id="gridFormCarnet" columns="3">
+		
+			<h:outputText style="font-weight:bold" value="Code :" />
+			<rich:spacer width="5px" />
+			<h:inputText class="text" value="#{frmTypeCarnet.currentObject.code}" disabled="#{!frmTypeCarnet.modeCreation}" >
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText style="font-weight:bold" value="Libelle :" />
+			<rich:spacer width="5px" />
+			<h:inputText class="text" value="#{frmTypeCarnet.currentObject.name}" >
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+		</h:panelGrid>
+	</fieldset>
+	
+	<h:panelGrid columns="2">
+		<a4j:commandButton value="Nouveau" action="#{frmTypeCarnet.initNewTypeCarnet}" immediate="true" reRender="gridFormCarnet" styleClass="ui-button ui-widget ui-state-default ui-corner-all"  />
+		<a4j:commandButton value="Enregistrer" action="#{frmTypeCarnet.saveTypeCarnet}" immediate="true" reRender="gridFormCarnet, gridListCarnet, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+	</h:panelGrid>
+	
+	
+	<fieldset><legend>Liste des Types de Carnets</legend>
+	<div id="carnets-contain">
+	<h:dataTable id="gridListCarnet" value="#{frmTypeCarnet.carnets}" var="carnet" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		<h:column>
+			<f:facet name="header">Code</f:facet>
+			<h:outputText value="#{carnet.code}" />
+		</h:column>
+		<h:column>
+			<f:facet name="header">Nom</f:facet>
+			<h:outputText value="#{carnet.name}" />
+		</h:column>
+		
+		<h:column>
+			<f:facet name="header">Edit</f:facet>
+			<h:graphicImage value="/views/img/edit16x.png" title="Modifier" style="cursor:pointer">
+           		<a4j:support event="onclick" reRender="gridFormCarnet" ajaxSingle="true">
+           			<f:setPropertyActionListener target="#{frmTypeCarnet.currentObject}" value="#{carnet}" />
+           		</a4j:support>
+			</h:graphicImage> 
+		</h:column>
+		<h:column>
+			<f:facet name="header">Suppr</f:facet>
+			<h:graphicImage value="/views/img/del16x.png" title="Supprimer" style="cursor:pointer">
+           		<a4j:support action="#{frmTypeCarnet.deleteTypeCarnet}" event="onclick" onsubmit="startWaitInStyle();" oncomplete="stoptWaitInStyle();" reRender="gridFormCarnet, gridListCarnet, pnlMsg" />
+			</h:graphicImage> 
+		</h:column>
+	</h:dataTable>
+	</div>
+	</fieldset>
+	
+	<!-- 
+	<h:panelGrid id="pnlMsg" columns="1"> <ui:include src="#{informationDialog.fileDefinition}" /> </h:panelGrid>
+	-->
+	
+</div>
+				
+
+
+</h:form>
+</rich:panel>
+
+</f:subview>

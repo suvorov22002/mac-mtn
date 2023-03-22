@@ -1,0 +1,93 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+	<rich:panel styleClass="client-panel-body">
+		<h:form prependId="false">
+	
+			<style>
+				div#params-contain { overflow-y:scroll; height:350px; width: 700px; margin: 0px 0; }
+				div#params-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+				div#params-contain table td, div#params-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+			</style>
+			
+			<a4j:jsFunction name="closefrmParametreAlertes" reRender="#{frmParametreAlertes.areaToRender}" immediate="true" action="#{frmParametreAlertes.close}" />
+			
+			<script>
+		
+				$( "#dialog-frmParametreAlertes" ).dialog({
+					autoOpen: true,
+					width: 730,
+					close: function() {
+						closefrmParametreAlertes();
+					}
+				});
+				
+				$(function() {
+					$( "#dialog-frmParametreAlertes" ).dialog({
+						autoOpen: false,
+						show: {
+							effect: "scale",
+							duration: 1000
+						},
+						hide: {
+							effect: "explode",
+							duration: 1000
+						}
+					});
+		
+				});
+			</script>
+	
+			<div id="dialog-frmParametreAlertes" title="#{frmParametreAlertes.title}">
+				
+				<fieldset><legend>Liste des Paramètres d'Alerte </legend>
+				<div id="params-contain" >
+					<h:panelGrid id="gridParametres" columns="1">			
+						<h:dataTable value="#{frmParametreAlertes.listParamAlertes}" var="alerte" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+									
+							<h:column>
+								<f:facet name="header"><h:outputText value="Code Agence" /></f:facet>
+								<h:outputText value="#{alerte.codeAgence}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header"><h:outputText value="Nom Agence" /></f:facet>
+								<h:outputText value="#{alerte.nomAgence}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header"><h:outputText value="Emails" /></f:facet>
+								<h:outputText value="#{alerte.allEmails}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header"><h:outputText value="Modifier" /></f:facet>
+								<h:graphicImage value="/views/img/edit16x.png" title="Editer les adresses mail" style="cursor:pointer" >
+					           		<a4j:support event="onclick" reRender="pnlMsg, gridEmails, #{frmParametreAlertes.frmEditEmailAlertesName}" ajaxSingle="true" >
+					           			<f:setPropertyActionListener target="#{frmParametreAlertes.selectedParamAlerte}" value="#{alerte}" />
+					           		</a4j:support>
+								</h:graphicImage>
+							</h:column>
+						
+						</h:dataTable>	
+						
+					</h:panelGrid>
+				</div>
+				</fieldset>
+					
+				<fieldset><legend></legend>
+					<h:panelGrid columns="4" >
+						<a4j:commandButton value="Enregister" action="#{frmParametreAlertes.saveParametreAlertes}" immediate="true" reRender="gridParametres, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+					</h:panelGrid>
+				</fieldset>
+						
+			</div>
+			
+		</h:form>
+	</rich:panel>
+
+</f:subview>

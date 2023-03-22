@@ -1,0 +1,57 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:a4j="http://richfaces.org/a4j">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1" />
+	<title>Mobile Money</title>
+	
+	<link href="#{informationBean.contextPath}/views/css/portalStyles.css" rel="stylesheet" type="text/css" />
+	<link rel="stylesheet" href="#{informationBean.graphicUIURL}/development-bundle/themes/#{informationBean.connectedUser.skin}/jquery.ui.all.css" />
+	<script src="#{informationBean.graphicUIURL}/development-bundle/jquery-1.10.2.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.core.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.widget.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.tabs.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.button.js"></script>
+	<link rel="stylesheet" href="#{informationBean.graphicUIURL}/development-bundle/demos/demos.css" />
+	
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.mouse.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.draggable.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.position.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.resizable.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.dialog.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.effect.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.effect-blind.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.effect-scale.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.tooltip.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.effect-explode.js"></script>
+	<script src="#{informationBean.graphicUIURL}/development-bundle/ui/jquery.ui.accordion.js"></script>
+	
+	<script src="#{informationBean.contextPath}/views/js/mainScript.js"></script>
+	
+</head>
+
+<body style="background-image:url(#{informationBean.graphicUIURL}/images/bkMoMo.png)">
+
+	<iframe style="display: none" id="WaitDialog" class="waitDialogStyle" frameborder="0" align="middle" />
+	
+	<table class="fillcontent">
+		<tr>
+			<td height="20" valign="top">
+				<!-- MENU AREA -->
+				<ui:insert name="MenuArea"></ui:insert>
+			</td>
+		</tr>
+		<tr>
+			<td height="620px" valign="top">
+				<!-- CONTENT AREA -->
+				<ui:insert name="ContentArea"></ui:insert>
+			</td>
+		</tr>
+	</table>
+
+</body>
+
+</html>

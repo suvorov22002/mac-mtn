@@ -1,0 +1,102 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<h:form>
+
+	<style>
+		div#maj-contain { overflow-y:scroll; height:380px; width: 870px; margin: 0px 0; }
+		div#maj-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#maj-contain table td, div#maj-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeMAJ" reRender="#{frmMAJAbonnements.areaToRender}" immediate="true" action="#{frmMAJAbonnements.close}" />
+	
+	<script type="text/javascript">
+
+	$( "#dialog-maj" ).dialog({
+		autoOpen: true,
+		width: 900,
+		close: function() {
+			closeMAJ();
+		}
+	});
+	
+	$(function() {
+		$( "#dialog-maj" ).dialog({
+			autoOpen: false,
+			show: {
+				effect: "scale",
+				duration: 1000
+			},
+			hide: {
+				effect: "explode",
+				duration: 1000
+			}
+		});
+
+	});
+	
+</script>
+
+
+<div id="dialog-maj" title="Rapport de mise à jour des abonnements">
+	
+		
+	<fieldset><legend> <h:outputText value="Abonnements mis à jour" /> </legend>
+	
+	<div id="maj-contain">
+		<h:dataTable id="gridAbonMAJ" value="#{frmMAJAbonnements.abonnements}" var="abon" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="N°" /></f:facet>
+				<h:outputText value="#{frmMAJAbonnements.num}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Code" /></f:facet>
+				<h:outputText value="#{abon.customerId}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Client" /></f:facet>
+				<h:outputText value="#{abon.customerName}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date Souscription" /></f:facet>
+				<h:outputText value="#{abon.formattedDate}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Compte(s)" /></f:facet>
+				<h:outputText value="#{abon.firstAccount}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N° Telephone(s)" /></f:facet>
+				<h:outputText value="#{abon.firstPhone}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Employé" /></f:facet>
+				<h:outputText value="#{!abon.facturer}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Statut" /></f:facet>
+				<h:outputText value="#{abon.status.value}" />
+			</h:column>
+			
+		</h:dataTable>
+	</div>
+	</fieldset>
+	
+</div>
+
+</h:form>
+
+</f:subview>

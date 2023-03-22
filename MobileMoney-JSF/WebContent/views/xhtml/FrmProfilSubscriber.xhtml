@@ -1,0 +1,150 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#souscrips-contain { overflow-y:scroll; height:380px; width: 970px; margin: 0px 0; }
+		div#souscrips-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#souscrips-contain table td, div#souscrips-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closefrmProfilSubscriber" reRender="#{frmProfilSubscriber.areaToRender}" immediate="true" action="#{frmProfilSubscriber.close}" />
+	
+	<script>
+
+		$( "#dialog-frmProfilSubscriber" ).dialog({
+			autoOpen: true,
+			width: 1000,
+			close: function() {
+				closefrmProfilSubscriber();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-frmProfilSubscriber" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-frmProfilSubscriber" title="#{frmProfilSubscriber.title}">
+
+	<fieldset><legend>Recherche</legend>
+		<h:panelGrid columns="16">
+		
+			<h:outputText  value="Du :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmProfilSubscriber.txtDateDeb}" style="width:80px">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Au :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmProfilSubscriber.txtDateFin}" style="width:80px">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Code client :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmProfilSubscriber.txtSearchCustId}" style="width:50px" maxlength="7" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Nom du client :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmProfilSubscriber.txtSearchClient}">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton value="Rechercher" action="#{frmProfilSubscriber.filterSouscriptions}" immediate="true" reRender="gridSouscriptions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton value="Enregister" action="#{frmProfilSubscriber.processSave}" immediate="true" reRender="gridSouscriptions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			
+		</h:panelGrid>
+	</fieldset>
+		
+	<fieldset><legend>Liste des souscriptions</legend>
+	
+	<div id="souscrips-contain">
+		<h:dataTable id="gridSouscriptions" value="#{frmProfilSubscriber.souscriptions}" var="sous" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="N°" /></f:facet>
+				<h:outputText value="#{frmProfilSubscriber.num}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Code" /></f:facet>
+				<h:outputText value="#{sous.customerId}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Client" /></f:facet>
+				<h:outputText value="#{sous.customerName}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date" /></f:facet>
+				<h:outputText value="#{sous.formattedDate}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Compte(s)" /></f:facet>
+				<h:outputText value="#{sous.firstAccount}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N° Telephone(s)" /></f:facet>
+				<h:outputText value="#{sous.firstPhone}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Statut" /></f:facet>
+				<h:outputText value="#{sous.status.value}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Profil" /></f:facet>
+				<h:selectOneMenu value="#{sous.profilId}" class="text">
+					<f:selectItems value="#{frmProfilSubscriber.itemsStatuts}"/>
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:selectOneMenu>
+			</h:column>
+						
+			<h:column>
+				<f:facet name="header">Imprimer</f:facet>
+				<h:graphicImage value="#{informationBean.graphicUIURL}/images/Printer-icon.png" title="Imprimer le reçu" style="cursor:pointer">
+	           		<a4j:support event="onclick" reRender="pnlMsg, pnlReportViewwer" ajaxSingle="true" onsubmit="startWaitInStyle();" oncomplete="stoptWaitInStyle();">
+	           			<f:setPropertyActionListener target="#{frmProfilSubscriber.selectedRecu}" value="#{sous}" />
+	           		</a4j:support>
+				</h:graphicImage> 
+			</h:column>
+			
+		</h:dataTable>
+		</div>
+	</fieldset>
+	
+</div>
+				
+				
+</h:form>
+</rich:panel>
+
+</f:subview>

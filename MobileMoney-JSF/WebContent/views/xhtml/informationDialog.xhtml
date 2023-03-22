@@ -1,0 +1,66 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<h:form>
+
+<a4j:jsFunction name="closeDialogInformation" reRender="pnlMsg" immediate="true" action="#{informationDialog.close}" />
+
+<script type="text/javascript">
+
+	$(function() {
+		$( "#dialog-message" ).dialog({
+			autoOpen: true,
+			modal: true,
+			buttons: {
+				Ok: function() {
+					$( this ).dialog( "close" );
+				}
+			},
+			close: function( event, ui ) {
+				closeDialogInformation();
+			},
+			show: {
+				effect: "scale",
+				duration: 1000
+			},
+			hide: {
+				effect: "explode",
+				duration: 1000
+			}
+		});
+	});
+
+	
+</script>
+
+
+<div id="dialog-message" title="#{informationDialog.title}">
+	<p>
+		<span class="ui-icon ui-icon-circle-check" style="float:left; margin:0 7px 10px 0;"></span>
+		<h:graphicImage value="#{informationBean.graphicUIURL}/images/#{informationDialog.icon}" rendered="#{informationDialog.open}" />
+		<h:outputText value="#{informationDialog.message}" rendered="#{informationDialog.open}" />
+	</p>
+	<img src="#{informationBean.graphicUIURL}/images/expand.gif" id="detailsShowLink" title="Afficher le detail" onclick="document.getElementById('divDetails').style.display = 'block';document.getElementById('detailsHideLink').style.display = 'block';this.style.display = 'none'" />
+	<img src="#{informationBean.graphicUIURL}/images/collapse.gif"  id="detailsHideLink" title="Masquer le detail" onclick="document.getElementById('divDetails').style.display = 'none';document.getElementById('detailsShowLink').style.display = 'block';this.style.display = 'none'" style="display: none;" />
+	<div id="divContainer">
+		<div id="divDetails" style="display: none;">
+			<table>
+				<tr>
+					<td>
+						<textarea class="error-detail-textArea"  rows="5" cols="40" style="width: 280px" readonly="readonly" >
+							<h:outputText value="#{informationDialog.details}" rendered="#{informationDialog.open}" />
+						</textarea>
+					</td>
+				</tr>
+			</table>
+		</div>
+	</div>
+</div>
+
+</h:form>
+
+</f:subview>

@@ -1,0 +1,57 @@
+Page de codes activeÿ: 65001
+2019_08_09_17_50_18
+On branch dev
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git checkout -- <file>..." to discard changes in working directory)
+
+	modified:   .metadata/.log
+	modified:   .metadata/.plugins/org.eclipse.core.resources/.projects/MobileMoney-Business/.markers
+	deleted:    .metadata/.plugins/org.eclipse.core.resources/.projects/MobileMoney-JPA/.indexes/e4/81/dd/58/a2/db/3f/history.index
+	modified:   .metadata/.plugins/org.eclipse.core.resources/.projects/MobileMoney-JPA/.markers
+	modified:   .metadata/.plugins/org.eclipse.core.resources/.projects/MobileMoney-JSF/.markers
+	modified:   .metadata/.plugins/org.eclipse.core.resources/.root/.indexes/properties.index
+	modified:   .metadata/.plugins/org.eclipse.core.resources/.safetable/org.eclipse.core.resources
+	modified:   .metadata/.plugins/org.eclipse.core.runtime/.settings/org.eclipse.wst.jsdt.web.core.prefs
+	modified:   .metadata/.plugins/org.eclipse.jdt.core/2942565689.index
+	modified:   .metadata/.plugins/org.eclipse.jdt.ui/QualifiedTypeNameHistory.xml
+	modified:   .metadata/.plugins/org.eclipse.pde.core/.cache/clean-cache.properties
+	modified:   .metadata/.plugins/org.eclipse.ui.workbench.texteditor/dialog_settings.xml
+	modified:   .metadata/.plugins/org.eclipse.wst.internet.cache/cache.xml
+	deleted:    .recommenders/index/http___download_eclipse_org_recommenders_models_neon_/write.lock
+	modified:   GitAutoPushlog.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+
+	docs/MAC MTN - GUIDE DE DEPLOIEMENT - 08082019.docx
+	docs/MAC MTN - GUIDE DE DEPLOIEMENT - 08082019.pdf
+	docs/MAC MTN - RELEASE NOTE - 08082019.docx
+	docs/MAC MTN - RELEASE NOTE - 08082019.pdf
+
+no changes added to commit (use "git add" and/or "git commit -a")
+[dev 068fc5f] Version_au _2019_08_09_17_50_18
+ Committer: Alex JAZA FOLEFACK JIOZEU <alex_jaza@AFRILAND.com>
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly. Run the
+following command and follow the instructions in your editor to edit
+your configuration file:
+
+    git config --global --edit
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+ 19 files changed, 64 insertions(+), 35 deletions(-)
+ delete mode 100644 .metadata/.plugins/org.eclipse.core.resources/.projects/MobileMoney-JPA/.indexes/e4/81/dd/58/a2/db/3f/history.index
+ rewrite .metadata/.plugins/org.eclipse.core.resources/.safetable/org.eclipse.core.resources (87%)
+ rewrite .metadata/.plugins/org.eclipse.jdt.core/2942565689.index (94%)
+ delete mode 100644 .recommenders/index/http___download_eclipse_org_recommenders_models_neon_/write.lock
+ rewrite GitAutoPushlog.txt (68%)
+ create mode 100644 docs/MAC MTN - GUIDE DE DEPLOIEMENT - 08082019.docx
+ create mode 100644 docs/MAC MTN - GUIDE DE DEPLOIEMENT - 08082019.pdf
+ create mode 100644 docs/MAC MTN - RELEASE NOTE - 08082019.docx
+ create mode 100644 docs/MAC MTN - RELEASE NOTE - 08082019.pdf
+Vous avez mis a jour votre projet avec succÃ¨s ! Bye bye!!!

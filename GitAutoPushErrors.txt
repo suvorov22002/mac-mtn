@@ -1,0 +1,10 @@
+warning: LF will be replaced by CRLF in GitAutoPushlog.txt.
+The file will have its original line endings in your working directory.
+remote: 
+remote: To create a merge request for dev, visit:        
+remote:   http://1a9e342f1e9a/root/mobilemoney/merge_requests/new?merge_request%5Bsource_branch%5D=dev        
+remote: 
+To http://192.168.11.117:8280/root/mobilemoney.git
+   937414b..068fc5f  dev -> dev
+'#master' n’est pas reconnu en tant que commande interne
+ou externe, un programme exécutable ou un fichier de commandes.

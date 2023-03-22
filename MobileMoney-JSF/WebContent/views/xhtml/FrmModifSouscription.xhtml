@@ -1,0 +1,120 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#phone-contain account-contain { overflow-y:scroll; height:100px; width: 150px; margin: 0px 0; }
+		div#phone-contain account-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#phone-contain account-contain table td, div#phone-contain account-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeFrmModifSouscription" reRender="#{frmModifSouscription.areaToRender}" immediate="true" action="#{frmModifSouscription.close}" />
+	
+	<script>
+
+		$( "#dialog-modsubs" ).dialog({
+			autoOpen: true,
+			width: 650,
+			close: function() {
+				closeFrmModifSouscription();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-modsubs" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-modsubs" title="#{frmModifSouscription.title}">
+
+	<fieldset><legend>Recherche du souscripteur</legend>
+		<h:panelGrid id="panelSearch" columns="9">
+		
+			<h:outputText  value="Code du client :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmModifSouscription.txtCustomerId}" style="width:70px" onkeypress="controleChiffres(event)" maxlength="7">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton value="Rechercher" action="#{frmModifSouscription.findSubscriber}" ajaxSingle="true" immediate="true" reRender="gridFormModifSouscription, gridPhonesAndAccounts, pnlCommands, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="10px" />
+			
+		</h:panelGrid>
+	</fieldset>
+		
+	<fieldset><legend>Souscription</legend>
+		<h:panelGrid id="gridFormModifSouscription" columns="3">
+		
+			<h:outputText  value="Nom du Client :" />
+			<rich:spacer width="5px" />
+			<h:inputText class="text" value="#{frmModifSouscription.subscriber.customerName}" readonly="true" style="width:350px" />
+		
+			<h:outputText  value="Adresse :" />
+			<rich:spacer width="5px" />
+			<h:inputText class="text" value="#{frmModifSouscription.subscriber.customerAddress}" readonly="true" style="width:350px" />
+		</h:panelGrid>
+	
+		<h:panelGrid id="gridPhonesAndAccounts" columns="3">			
+			<h:dataTable id="phone-contain" value="#{frmModifSouscription.phones}" var="phone" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+				<h:column>
+					<f:facet name="header"><h:outputText value="N° de Telephone(s)" /></f:facet>
+					<h:inputText value="#{phone.value}" class="text" style="width:100px" disabled="#{!frmModifSouscription.toModify}" onkeypress="controleChiffres(event)">
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:inputText>
+				</h:column>
+			</h:dataTable>
+			
+			<rich:spacer width="5px" />
+				
+			<h:dataTable id="account-contain" value="#{frmModifSouscription.accounts}" var="acc" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+				<h:column>
+					<f:facet name="header"><h:outputText value=" " /></f:facet>
+					<h:selectBooleanCheckbox value="#{acc.checked}" disabled="#{!frmModifSouscription.toModify}">
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:selectBooleanCheckbox>
+				</h:column>
+				<h:column>
+					<f:facet name="header"><h:outputText value="N° de compte(s)" /></f:facet>
+					<h:outputText value="#{acc.value}" />
+				</h:column>
+			</h:dataTable>
+		</h:panelGrid>
+			
+			<a4j:commandButton rendered="#{userHabilitation.btnModifierSouscriptionEnabled}" value="Sauvegarder" action="#{frmModifSouscription.save}" immediate="true" reRender="gridFormModifSouscription, gridPhonesAndAccounts, gridPhonesAndAccounts, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			
+	</fieldset>
+	
+	<h:panelGrid id="pnlCommands" columns="5">
+		<a4j:commandButton rendered="#{userHabilitation.btnModifierPINEnabled}" value="Générer nouveau code PIN" action="#{frmModifSouscription.modifyBankPIN}" immediate="true" reRender="gridFormModifSouscription, gridPhonesAndAccounts, gridPhonesAndAccounts, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		<rich:spacer width="3px" />
+		<a4j:commandButton rendered="#{userHabilitation.btnModifierSouscriptionEnabled}" value="Modifier N° Tel ou N° de Cpte" disabled="#{!frmModifSouscription.btnModifyEnabled}" action="#{frmModifSouscription.clickBtnModifiy}" immediate="true" reRender="gridFormModifSouscription, gridPhonesAndAccounts, gridPhonesAndAccounts, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+		<rich:spacer width="3px" />
+		<a4j:commandButton rendered="#{userHabilitation.btnModifierSouscriptionEnabled}" value="Ajouter N° Tel ou N° de Cpte" disabled="#{!frmModifSouscription.btnAddEnabled}" action="#{frmModifSouscription.clickBtnAdd}" immediate="true" reRender="gridFormModifSouscription, gridPhonesAndAccounts, gridPhonesAndAccounts, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" />
+	</h:panelGrid>
+	
+</div>
+				
+
+
+</h:form>
+</rich:panel>
+
+</f:subview>

@@ -1,0 +1,216 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+	xmlns:h="http://java.sun.com/jsf/html"
+	xmlns:f="http://java.sun.com/jsf/core"
+	xmlns:ui="http://java.sun.com/jsf/facelets"
+	xmlns:rich="http://richfaces.org/rich"
+	xmlns:a4j="http://richfaces.org/a4j">
+
+	<rich:panel styleClass="client-panel-body">
+		<h:form prependId="false">
+
+			<style>
+				div#robot-contain {
+					overflow-y: scroll;
+					height: 300px;
+					width: 550px;
+					margin: 0px 0;
+				}
+				
+				div#robot-contain table {
+					margin: 1em 0;
+					border-collapse: collapse;
+					width: 100%;
+				}
+				
+				div#robot-contain table td, div#robot-contain table th {
+					border: 1px solid #eee;
+					padding: .2em 2px;
+					text-align: left;
+				}
+			</style>
+
+			<a4j:jsFunction name="closeFrmSuiviRobot"
+				reRender="#{frmSuiviRobot.areaToRender}" immediate="true"
+				action="#{frmSuiviRobot.close}" />
+
+			<script>
+
+				$( "#dialog-robot" ).dialog({
+					autoOpen: true,
+					width: 600,
+					close: function() {
+						closeFrmSuiviRobot();
+					}
+				});
+				
+				$(function() {
+					$( "#dialog-robot" ).dialog({
+						autoOpen: false,
+						show: {
+							effect: "scale",
+							duration: 1000
+						},
+						hide: {
+							effect: "explode",
+							duration: 1000
+						}
+					});
+		
+				});
+			</script>
+
+			<div id="dialog-robot" title="#{frmSuiviRobot.title}">
+
+				<fieldset>
+					<legend>Contrôle</legend>
+
+					<h:panelGrid id="pnlRobot" columns="3">
+
+						<h:outputText value="Exécution suivi" style="font-weight:bold;" />
+						<h:selectOneMenu value="#{frmSuiviRobot.executionRobot}"
+							style="height:30px">
+<!-- 							<f:selectItem itemValue="" itemLabel="Choisir" /> -->
+							<f:selectItem itemValue="ON" itemLabel="ON" />
+							<f:selectItem itemValue="OFF" itemLabel="OFF" />
+							<a4j:support event="onchange" ajaxSingle="true" />
+						</h:selectOneMenu>
+						
+						<a4j:commandButton
+							rendered="#{userHabilitation.menuConfigsEnabled}" value="Valider"
+							action="#{frmSuiviRobot.saveExecution}" immediate="true"
+							reRender="pnlMsg"
+							styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+							onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+						
+						<rich:spacer width="300px" />
+						<a4j:commandButton
+							rendered="#{userHabilitation.menuConfigsEnabled}"
+							value="Arrêter Robot" disabled="#{!frmSuiviRobot.robotLancer}"
+							action="#{frmSuiviRobot.arreterRobot}" immediate="true"
+							reRender="pnlRobot, pnlMsg"
+							styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+							onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+
+						<a4j:commandButton
+							rendered="#{userHabilitation.menuConfigsEnabled}"
+							value="Démarrer Robot" disabled="#{frmSuiviRobot.robotLancer}"
+							action="#{frmSuiviRobot.demarrerRobot}" immediate="true"
+							reRender="pnlRobot, pnlMsg"
+							styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+							onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+
+
+						<h:outputText value="#{frmSuiviRobot.lastExecution}"
+							style="font-weight:bold; color : red;" />
+						<h:graphicImage value="/views/img/initpwd.png" title="Actualiser"
+							style="cursor:pointer">
+							<a4j:support event="onclick" reRender="pnlRobot, pnlMsg"
+								action="#{frmSuiviRobot.actualiserPage}" ajaxSingle="true"
+								onsubmit="startWaitInStyle();" oncomplete="stoptWaitInStyle();">
+							</a4j:support>
+						</h:graphicImage>
+
+					</h:panelGrid>
+				</fieldset>
+
+
+
+				<fieldset>
+					<legend>Liste des traces de réconciliation</legend>
+
+					<div id="robot-contain">
+						<h:dataTable id="gridSuiviRobot"
+							value="#{frmSuiviRobot.listTraces}" var="var"
+							styleClass="ui-widget ui-widget-content"
+							headerClass="ui-widget-header"
+							rowClasses="row-style-pair, row-style-impair">
+
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Num" />
+								</f:facet>
+								<h:outputText value="#{frmSuiviRobot.num}" />
+							</h:column>
+
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Date Time" />
+								</f:facet>
+								<h:outputText value="#{var.formattedDatetimeTrace}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Type Trx" />
+								</f:facet>
+								<h:outputText value="#{var.operation}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Trx ID" />
+								</f:facet>
+								<h:outputText value="#{var.trxId}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Montant" />
+								</f:facet>
+								<h:outputText value="#{var.amount}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Statut" />
+								</f:facet>
+								<h:graphicImage
+									value="#{informationBean.graphicUIURL}/images/#{var.status eq 'SUCCESS' ? 'ok16x.png' : 'DeleteRed16x.png'}" />
+							</h:column>
+							
+							<h:column>
+								<f:facet name="header">
+									<h:outputText value="Commentaire" />
+								</f:facet>
+								<h:outputText value="#{var.commentaire}" />
+							</h:column>
+							
+						</h:dataTable>
+
+					</div>
+
+				</fieldset>
+				
+				<fieldset>
+					<legend>Recherche</legend>
+
+					<h:panelGrid columns="8" cellspacing="2" cellpadding="2">
+
+						<h:outputText value="Du :" style="font-weight:bold;" />
+						<h:inputText class="text" value="#{frmSuiviRobot.txtDateDeb}" maxlength="10" style="width:80px">
+							<a4j:support event="onchange" ajaxSingle="true" />
+						</h:inputText>
+						
+						<h:outputText value="Au :" style="font-weight:bold;" />
+						<h:inputText class="text" value="#{frmSuiviRobot.txtDateFin}" maxlength="10" style="width:80px">
+							<a4j:support event="onchange" ajaxSingle="true" />
+						</h:inputText>
+
+						<rich:spacer width="5px" />
+						<a4j:commandButton
+							rendered="#{userHabilitation.menuUSSDTransEnabled}"
+							value="Rechercher" action="#{frmSuiviRobot.filterTraceRobots}"
+							immediate="true" reRender="gridSuiviRobot, pnlMsg"
+							styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+							onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+
+					</h:panelGrid>
+				</fieldset>
+				
+			</div>
+
+		</h:form>
+
+	</rich:panel>
+
+</f:subview>

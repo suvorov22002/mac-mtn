@@ -1,0 +1,120 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<h:form>
+
+	<style>
+		div#maj-contain { overflow-y:scroll; height:380px; width: 890px; margin: 0px 0; }
+		div#maj-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#maj-contain table td, div#maj-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeMAJ" reRender="#{frmMAJDateFacturation.areaToRender}" immediate="true" action="#{frmMAJDateFacturation.close}" />
+	
+	<script type="text/javascript">
+
+	$( "#dialog-maj" ).dialog({
+		autoOpen: true,
+		width: 980,
+		close: function() {
+			closeMAJ();
+		}
+	});
+	
+	$(function() {
+		$( "#dialog-maj" ).dialog({
+			autoOpen: false,
+			show: {
+				effect: "scale",
+				duration: 1000
+			},
+			hide: {
+				effect: "explode",
+				duration: 1000
+			}
+		});
+
+	});
+	
+</script>
+
+
+<div id="dialog-maj" title="Rapport de mise à jour des dates facturation">
+	
+	<fieldset><legend>Traitement des dates de facturation</legend>
+		<h:panelGrid id="pnlRobot" columns="3">
+			<a4j:commandButton
+				rendered="#{userHabilitation.menuConfigsEnabled}" value="Mise A Jour Date Facturation"
+				action="#{frmMAJDateFacturation.mAJLastDateFact}" immediate="true"
+				reRender="pnlMsg, gridAbonMAJ"
+				styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+				onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton
+				rendered="#{userHabilitation.menuConfigsEnabled}"
+				value="Rechercher Anomalies"
+				action="#{frmMAJDateFacturation.dateFacturationAregulariser}" immediate="true"
+				reRender="gridAbonMAJ, pnlMsg"
+				styleClass="ui-button ui-widget ui-state-default ui-corner-all"
+				onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		</h:panelGrid>
+	<fieldset><legend> <h:outputText value="Liste date à mettre à jour" /> </legend>
+	
+	<div id="maj-contain">
+		<h:dataTable id="gridAbonMAJ" value="#{frmMAJDateFacturation.abonnements}" var="abon" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="N°" /></f:facet>
+				<h:outputText value="#{frmMAJDateFacturation.num}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="ID" /></f:facet>
+				<h:outputText value="#{abon.id}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Code" /></f:facet>
+				<h:outputText value="#{abon.customerId}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Client" /></f:facet>
+				<h:outputText value="#{abon.customerName}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date Souscription" /></f:facet>
+				<h:outputText value="#{abon.formattedDate}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date Save Derniere Fact" /></f:facet>
+				<h:outputText value="#{abon.dateSaveDernCompta}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date Derniere Fact" /></f:facet>
+				<h:outputText value="#{abon.dateDernCompta}" />
+			</h:column>
+			
+			<!--  
+			<h:column>
+				<f:facet name="header"><h:outputText value="Statut" /></f:facet>
+				<h:outputText value="#{abon.status.value}" />
+			</h:column>
+			-->
+		</h:dataTable>
+	</div>
+	</fieldset>
+   </fieldset>
+</div>
+
+</h:form>
+
+</f:subview>

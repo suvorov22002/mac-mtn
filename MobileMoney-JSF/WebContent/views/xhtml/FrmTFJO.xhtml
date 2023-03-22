@@ -1,0 +1,155 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#tfjo-contain { overflow-y:scroll; height:380px; width: 870px; margin: 0px 0; }
+		div#tfjo-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#tfjo-contain table td, div#tfjo-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeFrmTFJO" reRender="#{frmTFJO.areaToRender}" immediate="true" action="#{frmTFJO.close}" />
+	
+	<script>
+
+		$( "#dialog-tfjo" ).dialog({
+			autoOpen: true,
+			width: 900,
+			close: function() {
+				closeFrmTFJO();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-tfjo" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-tfjo" title="#{frmTFJO.title}">
+   
+	<fieldset><legend>Commandes</legend>
+		<h:panelGrid columns="9" id="pnlCommands">
+			<a4j:commandButton rendered="#{userHabilitation.btnExecuterTFJOEnabled}" value="Abonnements à Comptabiliser" title="Charger les abonnements à comptabiliser et extraire les EC" action="#{frmTFJO.executerTFJO}" immediate="true" reRender="gridTFJO, pnlMsg, totauxTFJO, pnlCommands" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+			<a4j:commandButton rendered="false" value="Consulter EC" title="Extraire les écritures comptables des transactions selectionnées et les extraire dans un fichier Excel" action="#{frmTFJO.extraireECSousExcel}" immediate="true" reRender="lnkExcelFile, pnlCommands, pnlMsg, totauxTFJO" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton rendered="#{userHabilitation.btnExecuterTFJOEnabled}" value="Regul Abonnements à Comptabiliser" title="Charger les reguls des abonnements à comptabiliser et extraire les EC" action="#{frmTFJO.executerRegulTFJO}" immediate="true" reRender="gridTFJO, pnlMsg, totauxTFJO, pnlCommands" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+			<a4j:commandButton disabled="#{!frmTFJO.postFile}" rendered="#{userHabilitation.btnValiderTFJOEnabled}" value="Transférer fichier EC" title="Transférer le fichier des écritures comptables vers le serveur Amplitude pour intégration" action="#{frmTFJO.validerTFJO}" immediate="true" reRender="lnkExcelFile, pnlCommands, gridTFJO, pnlMsg, #{frmTransactions.frmRapportName}, totauxTFJO, pnlReportViewwer" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+			<h:outputLink id="lnkExcelFile" rendered="#{frmTFJO.exportedFileExist}" target="_blank" value="#{informationBean.downloadDataURL}/#{frmTFJO.ecFileNameRapp}"> <h:outputText value="#{frmTFJO.ecFileNameRapp}" /> </h:outputLink>
+		</h:panelGrid>
+	</fieldset>
+		
+	<fieldset><legend><h:outputText value="Liste des Opérations à Comptabiliser" /></legend>
+	
+		<div id="tfjo-contain">
+			<h:dataTable id="gridTFJO" value="#{frmTFJO.list}" var="tfjo" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+							
+				<h:column>
+					<f:facet name="header"><h:outputText value="N°" /></f:facet>
+					<h:outputText value="#{frmTFJO.num}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="Client" /></f:facet>
+					<h:outputText value="#{tfjo.subscriber.customerName}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="Date Traitement" /></f:facet>
+					<h:outputText value="#{tfjo.formattedDate}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="Periodicité" /></f:facet>
+					<h:outputText value="#{tfjo.subscriber.period.value}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="Date Sousc." /></f:facet>
+					<h:outputText value="#{tfjo.subscriber.formattedDate}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="Date Dern. Facturation" /></f:facet>
+					<h:outputText value="#{tfjo.subscriber.formattedLastFactDate}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="N° Compte" /></f:facet>
+					<h:outputText value="#{tfjo.subscriber.firstAccount}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="N° Tel." /></f:facet>
+					<h:outputText value="#{tfjo.subscriber.firstPhone}" />
+				</h:column>
+				
+				<h:column>
+					<f:facet name="header"><h:outputText value="Montant" /></f:facet>
+					<h:outputText value="#{tfjo.commissions}" >
+						<f:convertNumber integerOnly="true"></f:convertNumber>
+					</h:outputText>
+				</h:column>
+					
+				<h:column>
+					<f:facet name="header"><h:outputText value="Taxes" /></f:facet>
+					<h:outputText value="#{tfjo.ttc - tfjo.commissions}" >
+						<f:convertNumber integerOnly="true"></f:convertNumber>
+					</h:outputText>
+				</h:column>
+					
+				<h:column>
+					<f:facet name="header"><h:outputText value="Validé?" /></f:facet>
+					<h:graphicImage value="#{informationBean.graphicUIURL}/images/#{tfjo.posted ? 'apply16x.png' : 'DeleteRed16x.png'}" />
+				</h:column>
+					
+			</h:dataTable>
+		</div>
+	</fieldset>
+	<h:panelGrid id="totauxTFJO" columns="15">
+		<h:outputText value="NOMBRE D'ABONNEMENTS : " style="font-weight:bold;" />
+		<h:outputText value="#{frmTFJO.nombre}" style="font-weight:bold;" />
+		<rich:spacer width="10px" />
+		<h:outputText value="MONTANT : " style="font-weight:bold;" />
+		<h:outputText value="#{frmTFJO.montant}" style="font-weight:bold;" >
+			<f:convertNumber integerOnly="true"></f:convertNumber>
+		</h:outputText>
+		<h:outputText value=" FCFA" style="font-weight:bold;" />
+		<rich:spacer width="10px" />
+		<a4j:commandButton disabled="#{!frmTFJO.precedent}" value="Précedent" title="Précedent" action="#{frmTFJO.pagePrecedente}" immediate="true" reRender="gridTFJO, pnlMsg, totauxTFJO" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		<rich:spacer width="3px" />
+		<a4j:commandButton disabled="#{!frmTFJO.suivant}" value="Suivant" title="Suivant" action="#{frmTFJO.pageSuivante}" immediate="true" reRender="gridTFJO, pnlMsg, totauxTFJO" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		<rich:spacer width="10px" />
+		<h:outputText value="Page #{frmTFJO.numPage}/#{frmTFJO.nbPages}" style="font-weight:bold;" />
+	</h:panelGrid>
+</div>
+
+
+</h:form>
+
+
+
+
+</rich:panel>
+
+</f:subview>

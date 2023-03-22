@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+
+<project default="buildArchive" basedir=".">
+
+	<target name="init">
+		<property file="build.properties"/>
+	</target>
+	
+	<target name="clean" depends="init">
+		<delete dir="${output.dir}" failonerror="false" includeemptydirs="yes" />
+		<mkdir dir="${output.dir}" />
+	</target>
+	
+	<target name="buildArchive" depends="clean">
+		<jar destfile="${distribution.file.path}" defaultexcludes="yes" >
+			<zipfileset dir="${project.classpath}">
+				<include name="**/**"/>
+			</zipfileset>
+			<zipfileset dir="${loginmodule.resources.descriptor.dir}" prefix="META-INF">
+				<include name="${loginmodule.resources.descriptor.filename}"/>
+			</zipfileset>
+			<zipfileset dir="${loginmodule.resources.LoginConfig.dir}">
+				<include name="${loginmodule.resources.LoginConfig.filename}"/>
+			</zipfileset>
+		</jar>
+	</target>
+	
+</project>

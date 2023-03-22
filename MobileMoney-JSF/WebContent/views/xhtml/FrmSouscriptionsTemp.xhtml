@@ -1,0 +1,157 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#souscrips-contain { overflow-y:scroll; height:380px; width: 970px; margin: 0px 0; }
+		div#souscrips-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#souscrips-contain table td, div#souscrips-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeFrmSouscriptionsTemp" reRender="#{frmSouscriptionsTemp.areaToRender}" immediate="true" action="#{frmSouscriptionsTemp.close}" />
+	
+	<script>
+
+		$( "#dialog-souscription" ).dialog({
+			autoOpen: true,
+			width: 1000,
+			close: function() {
+				closeFrmSouscriptionsTemp();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-souscription" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-souscription" title="#{frmSouscriptionsTemp.title}">
+
+	<fieldset><legend>Recherche</legend>
+		<h:panelGrid columns="17">
+		
+<!-- 			<h:outputText  value="Du :" /> -->
+<!-- 			<rich:spacer width="3px" /> -->
+<!-- 			<h:inputText class="text" value="#{frmSouscriptionsTemp.txtDateDeb}" style="width:60px"> -->
+<!-- 				<a4j:support event="onchange" ajaxSingle="true" /> -->
+<!-- 			</h:inputText> -->
+			
+<!-- 			<h:outputText  value="Au :" /> -->
+<!-- 			<rich:spacer width="3px" /> -->
+<!-- 			<h:inputText class="text" value="#{frmSouscriptionsTemp.txtDateFin}" style="width:60px"> -->
+<!-- 				<a4j:support event="onchange" ajaxSingle="true" /> -->
+<!-- 			</h:inputText> -->
+			
+			<h:outputText  value="Code client :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmSouscriptionsTemp.txtSearchCustId}" style="width:50px" maxlength="7" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Numero Telephone :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmSouscriptionsTemp.txtSearchTel}" maxlength="9" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+<!-- 			<h:outputText  value="Statut :" /> -->
+<!-- 			<rich:spacer width="3px" /> -->
+<!-- 			<h:selectOneMenu value="#{frmSouscriptionsTemp.txtStatut}" class="text"> -->
+<!-- 				<f:selectItems value="#{frmSouscriptionsTemp.statutItems}"/> -->
+<!-- 				<a4j:support event="onchange" ajaxSingle="true" /> -->
+<!-- 			</h:selectOneMenu> -->
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton rendered="#{userHabilitation.btnConsulterSouscriptionsEnabled}" value="Rechercher" action="#{frmSouscriptionsTemp.filterSouscriptions}" immediate="true" reRender="gridSouscriptions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton  rendered="#{userHabilitation.btnConsulterSouscriptionsEnabled}" value="Enregistrer" action="#{frmSouscriptionsTemp.processSave}" immediate="true" reRender="gridSouscriptions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		
+		</h:panelGrid>
+	</fieldset>
+		
+	<fieldset><legend>Souscriptions Temporaires</legend>
+	
+	<div id="souscrips-contain">
+		<h:dataTable id="gridSouscriptions" value="#{frmSouscriptionsTemp.souscriptions}" var="sous" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value="N°" /></f:facet>
+				<h:outputText value="#{frmSouscriptionsTemp.num}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Agence" /></f:facet>
+				<h:outputText value="#{sous.ageName}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Code" /></f:facet>
+				<h:outputText value="#{sous.customerId}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Client" /></f:facet>
+				<h:outputText value="#{sous.customerName}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Compte(s)" /></f:facet>
+				<h:outputText value="#{sous.firstAccount}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N° Telephone(s)" /></f:facet>
+				<h:outputText value="#{sous.firstPhone}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Statut" /></f:facet>
+				<h:outputText value="#{sous.status.value}" />
+			</h:column>
+			
+<!-- 			<h:column> -->
+<!-- 				<f:facet name="header"><h:outputText value="Suspendu par" /></f:facet> -->
+<!-- 				<h:outputText value="#{sous.user ne null ? sous.user.login : sous.user}" /> -->
+<!-- 			</h:column> -->
+			
+<!-- 			<h:column> -->
+<!-- 				<f:facet name="header"><h:outputText value="Activé par" /></f:facet> -->
+<!-- 				<h:outputText value="#{sous.utiValid}" /> -->
+<!-- 			</h:column> -->
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Statut" /></f:facet>
+				<h:selectOneMenu value="#{sous.status}" class="text" >
+					<f:selectItems value="#{frmSouscriptionsTemp.statutItems}"/>
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:selectOneMenu>
+			</h:column>
+			
+		</h:dataTable>
+		</div>
+	</fieldset>
+	
+</div>
+
+</h:form>
+</rich:panel>
+
+</f:subview>

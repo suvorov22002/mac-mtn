@@ -1,0 +1,128 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<a4j:jsFunction name="closeFrmSimulation" reRender="#{frmSimulation.areaToRender}" immediate="true" action="#{frmSimulation.close}" />
+	
+	<script>
+
+		$( "#dialog-simulation" ).dialog({
+			autoOpen: true,
+			width: 350,
+			close: function() {
+				closeFrmSimulation();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-simulation" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+		$(function() {
+			$( "#tabPrm" ).tabs();
+		});
+	</script>
+
+<div id="dialog-simulation" title="#{frmSimulation.title}">
+	
+	<div id="tabPrm">
+		<ul>
+			<li><a href="#tabPrm-1">Digitalisation</a></li>
+			<li><a href="#tabPrm-2">Défaut</a></li>
+		</ul>
+		
+		<div id="tabPrm-1">
+			<fieldset><legend>Edition de la transaction</legend>
+				<h:panelGrid id="panelSimulECW" columns="3">
+				
+					<h:outputText  value="Opération :" />
+					<rich:spacer width="3px" />
+					<h:selectOneMenu value="#{frmSimulation.message.operation}">
+						<f:selectItems value="#{frmSimulation.opItemsECW}"/>
+						<a4j:support event="onchange" ajaxSingle="true" reRender="amount"/>
+					</h:selectOneMenu>
+					
+					<h:outputText  value="N° de Tel. :" />
+					<rich:spacer width="3px" />
+					<h:inputText class="text" value="#{frmSimulation.message.phoneNumber}"  style="width:80px" maxlength="12" title="ex : 237xxxxxxxxx" onkeypress="controleChiffres(event)">
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:inputText>
+					
+					<h:outputText  value="Montant :" />
+					<rich:spacer width="3px" />
+					<h:inputText id="amount" class="text" value="#{frmSimulation.message.amount}" style="width:80px" maxlength="15" onkeypress="controleChiffres(event)" 
+						disabled="#{frmSimulation.message.operation eq frmSimulation.operationBalance or frmSimulation.message.operation eq frmSimulation.operationMinistatement}">
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:inputText>
+				
+				</h:panelGrid>
+				
+				<h:panelGrid id="panelValiderECW" >
+					<a4j:commandButton rendered = "#{frmSimulation.params.etatServiceSDP.value eq 'Maintenance'}" value="Valider la Transaction" action="#{frmSimulation.sendMessageECW}" immediate="true" reRender="pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+				</h:panelGrid>
+			</fieldset>
+		</div>
+		
+		<div id="tabPrm-2">
+			<fieldset><legend>Edition de la transaction</legend>
+				<h:panelGrid id="panelSimul" columns="3">
+				
+					<h:outputText  value="Opération :" />
+					<rich:spacer width="3px" />
+					<h:selectOneMenu value="#{frmSimulation.message.operation}">
+						<f:selectItems value="#{frmSimulation.opItems}"/>
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:selectOneMenu>
+					
+					<h:outputText  value="N° de Tel. :" />
+					<rich:spacer width="3px" />
+					<h:inputText class="text" value="#{frmSimulation.message.phoneNumber}"  style="width:80px" maxlength="12" title="ex : 237xxxxxxxxx" onkeypress="controleChiffres(event)">
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:inputText>
+					
+					<h:outputText  value="Montant :" />
+					<rich:spacer width="3px" />
+					<h:inputText class="text" value="#{frmSimulation.message.amount}" style="width:80px" maxlength="15" onkeypress="controleChiffres(event)"
+						disabled="#{frmSimulation.message.operation eq frmSimulation.operationBalance}">
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:inputText>
+					
+					<h:outputText  value="Code PIN :" />
+					<rich:spacer width="3px" />
+					<h:inputSecret class="text" value="#{frmSimulation.message.bankPIN}" style="width:40px" maxlength="5" onkeypress="controleChiffres(event)">
+						<a4j:support event="onchange" ajaxSingle="true" />
+					</h:inputSecret>
+					
+				</h:panelGrid>
+				 
+				<h:panelGrid id="panelValider" >
+					<a4j:commandButton rendered = "false" value="Valider la Transaction" action="#{frmSimulation.sendMessage}" immediate="true" reRender="pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+				</h:panelGrid>
+				
+			</fieldset>
+		</div>
+	</div>
+</div>
+				
+
+
+</h:form>
+</rich:panel>
+
+</f:subview>

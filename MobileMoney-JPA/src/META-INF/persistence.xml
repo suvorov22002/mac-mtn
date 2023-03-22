@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence version="1.0" xmlns="http://java.sun.com/xml/ns/persistence" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://java.sun.com/xml/ns/persistence http://java.sun.com/xml/ns/persistence/persistence_1_0.xsd">
+	<persistence-unit name="Portal-DataModel" transaction-type="RESOURCE_LOCAL">
+	
+		<description>Persistence Unit of mobilemoney Datamodel</description>
+		<provider>org.hibernate.ejb.HibernatePersistence</provider>
+		<non-jta-data-source>java:/Portal-DS</non-jta-data-source>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.Commissions</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.Comptabilisation</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.Parameters</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.Subscriber</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.Transaction</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.USSDTransaction</class>
+		<class>com.afb.dpd.mobilemoney.jpa.tools.bkeve</class>
+		<class>com.afb.dpd.mobilemoney.jpa.tools.bkmvti</class>
+		<class>afb.dsi.dpd.portal.jpa.entities.User</class>
+		<class>afb.dsi.dpd.portal.jpa.entities.UserGroup</class>
+		<class>afb.dsi.dpd.portal.jpa.entities.Town</class>
+		<class>afb.dsi.dpd.portal.jpa.entities.Branch</class>
+		<class>afb.dsi.dpd.portal.jpa.entities.BranchType</class>
+		<class>afb.dsi.dpd.portal.jpa.entities.Module</class>
+		<class>afb.dsi.dpd.portal.jpa.entities.Role</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.PlageTransactions</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.Exercice</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.TraceRobot</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.ParametreAlertes</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.FactMonth</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.FactMonthDetails</class>
+		<class>com.afb.dpd.mobilemoney.jpa.entities.Resiliation</class>
+		<class>entreeRela.jpa.entities.TypeDocument</class> 
+		<class>entreeRela.jpa.entities.Document</class> 
+		<class>entreeRela.jpa.entities.TypeOperation</class> 
+		<class>entreeRela.jpa.entities.Workflow</class> 
+		<class>entreeRela.jpa.entities.Process</class> 
+		<class>entreeRela.jpa.entities.ProcessUser</class> 
+		<class>entreeRela.jpa.entities.ProcessGfc</class>
+
+		<properties>
+			
+			<!-- Connexion
+			<property name="hibernate.connection.url" value="jdbc:oracle:thin:@localhost:1521:XE" />
+			<property name="hibernate.connection.username" value="afbportal" />
+			<property name="hibernate.connection.password" value="portaldb" />
+			 -->
+			<!-- Dialecte -->
+			<property name="hibernate.dialect" value="org.hibernate.dialect.OracleDialect"/>
+			<property name="hibernate.connection.driver_class" value="oracle.jdbc.driver.OracleDriver"/>
+			
+			<!-- Logs -->
+			<property name="hibernate.show_sql" value="false"/>
+			<property name="hibernate.format_sql" value="true"/>
+			
+			<!-- Création -->
+			<property name="hibernate.hbm2ddl.auto" value="update"/>
+			
+		</properties>
+	</persistence-unit>
+</persistence>

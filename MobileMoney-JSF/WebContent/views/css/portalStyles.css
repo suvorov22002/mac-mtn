@@ -1,0 +1,412 @@
+/**
+ * Styles CSS du projet de presentation du portail
+ * @author Francis DJIOMOU
+ * @version 1.0
+ * */
+body{
+	background-image:url("../img/bk.png");
+	background-position:center;
+	background-repeat:repeat;
+	/*background-attachment:fixed;*/
+	/*background-color:#F5F5F5;*/
+	vertical-align:top;
+	margin:0;
+	padding:0;
+	border:0 none;
+	width:100%;
+	height:100%;
+	/*overflow:hidden;*/
+}
+.fillcontent{
+	background-color: transparent;
+	vertical-align:top;
+	margin:0;
+	padding:0;
+	border:0 none;
+	width:100%;
+	height:100%;
+}	
+
+.rounded{
+	-moz-border-radius: 10px;
+    -webkit-border-radius: 10px;
+    border-radius: 10px;
+}
+.applyBorders{
+	border-right:1px solid #666666;
+	border-left:1px solid #666666;
+	border-top:1px solid #666666;
+	border-bottom:1px solid #666666;
+}
+.bkNoRepeat{
+	background-repeat:no-repeat;
+}
+.middleAlignment{
+	vertical-align : middle;
+	align : center;
+}
+.noBorders{
+	border : 0 none;
+}
+.textStyleBottom{
+	color: black;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-size: 9px;
+}
+.cursorPointer{
+	cursor : pointer;
+}
+
+.piedDePage{
+	width:100%;
+	color: black;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-size: 9px;
+	height : 40px;
+	background-image:url("/views/img/bottommiddle.png");
+	border : 0 none;
+	-moz-border-radius: 5px;
+}
+.marqueeStyle{
+	color: steelblue;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-size: 9px;
+}
+.transparent{
+	filter:alpha(opacity=85);-moz-opacity:0.85;opacity: 0.85;
+}
+.formatTitle{
+	color: white;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-size: 10px;
+	font-weight:bold;
+}
+input{
+	margin-left : 5px;
+	margin-right : 10px;
+
+}
+
+select {
+ 	border: 1px solid darkgrey;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	background-color: aliceblue;
+	font-weight: bold;
+	font-size: 12px;
+	color: black;
+	padding-left: 3px;
+	min-width: 100px;
+	height : 20px;
+}
+ 
+label { 
+	display:block; 
+	color: black;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-weight:normal;
+	font-size: 11px;
+}
+
+label.required { 
+	font-weight:bold;
+}
+
+button{margin-left:10px; margin-right:10px;}
+input.text {
+	border: 1px solid #CCC;
+	-moz-border-radius: 7px;
+	-webkit-border-radius: 7px;
+	border-radius: 7px;
+	background-color:aliceblue;
+	color: black;
+	border-color : darkgrey;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-weight:normal;
+	font-size: 13px;
+	padding: .4em;
+}
+
+select {
+	border: 1px solid #CCC;
+	-moz-border-radius: 7px;
+	-webkit-border-radius: 7px;
+	border-radius: 7px;
+	background-color:aliceblue;
+	color: black;
+	border-color : darkgrey;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-weight:normal;
+	font-size: 13px;
+	padding: .4em;
+	margin-left : 5px;
+	margin-right : 5px;
+	min-width :50px ;
+	height:26px;
+}
+
+textArea{
+	border: 1px solid #CCC;
+	-moz-border-radius: 7px; -webkit-border-radius: 7px; border-radius: 7px;
+	background-color:aliceblue;
+	color: black;
+	border-color : darkgrey;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-weight:normal;
+	font-size: 13px;
+	padding: .4em;
+}
+
+input:focus {
+  border-color: rgba(82, 168, 236, 0.75);
+  -moz-box-shadow: 0 0 8px rgba(82, 168, 236, 0.5);
+  -webkit-box-shadow: 0 0 8px rgba(82, 168, 236, 0.5);
+  box-shadow: 0 0 8px rgba(82, 168, 236, 0.5);
+}
+fieldset { padding:2px; margin: 5px; }
+.login{
+	border:2px solid #666666;
+	width:21%;
+	height:263px;
+	background-image:url("/views/img/bkcnx.png");
+    -moz-border-radius: 10px;
+    -webkit-border-radius: 10px;
+    border-radius: 10px;
+	/*border-left:1px solid #666666;
+	border-top:1px solid #666666;
+	border-bottom:1px solid #666666;*/
+}
+.error-detail-textArea {
+	overflow: scroll;
+	width: 100%;
+}
+.rich-extdt-subheader {
+	color: white;
+	font-family: Verdana;
+	font-weight: bold;
+	font-size: 10px;
+	background-image: url(../img/tableDataHeader.png);
+	background-repeat: repeat;
+	max-height: 22px;
+}
+.textfieldStyle {
+ 	border: 1px solid #6699FF;
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	background-image: url(../img/BackgroundTextField.png);
+	font-weight: bold;
+	font-size: 11px;
+	color: #336699;
+	padding-left: 3px;
+	width: 100px;
+	height : 20px;
+	-moz-border-radius: 5px;
+}
+ 
+.labelStyle {
+ 	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	font-weight: normal;
+	font-size: 11px;
+	color: #336699;
+}
+ 
+.commandButtonStyle {
+	height : 20px;
+	width : 100px;
+	border :none;
+	background-image : url("/views/img/BackgroundCommandButton.png");
+	font-family: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+	border-left:  #6699FF solid 1px;
+	border-right: #6699FF solid 1px;
+	font-family:Arial;
+	color:white;
+	font-size: 11px;
+	font-weight: bold;
+	vertical-align : center;
+	cursor : pointer;
+	-moz-border-radius: 8px;
+}
+.row-style-pair {
+	background-color: aliceblue;
+}
+
+.row-style-impair {
+	background-color: white;
+}
+
+h1, h2 {
+	width: 250px;
+	font-size: 1.3em;
+	padding-bottom: .5em;
+	border-bottom: 1px solid #ffff00;
+	color: #ffff00;
+	margin-top: 1.5em;
+}
+
+h2 {
+	color: #05d6de;
+	border-bottom: 1px solid #05d6de;
+}
+
+h1.demochange {
+	color: #d755f7;
+	border-bottom: 1px solid #d755f7;
+	text-transform: uppercase;
+	cursor: pointer;
+	margin-top: 1em;
+}
+
+h1.demochange:hover {
+	color: #f4caff;
+	border-bottom-color: #f4caff;
+}
+
+.waitDialogStyle {
+	left: 0;
+	top: 0;
+	height: 100%;
+	width: 100%;
+	position: absolute;
+	background-color:white;
+	filter: progid: DXImageTransform.Microsoft.Alpha(opacity=60);
+	z-index: 10000;
+	-moz-opacity: 0.5;
+	opacity: 0.7;
+	background-repeat: no-repeat;
+	background-position: center;
+	background-image: url(../img/WaitImage.gif);
+}
+  
+.client-panel-body {
+	vertical-align: top;
+	padding: 0em;
+	margin: 0em;
+	width: 100%;
+	height: 100%;
+	background:transparent;
+	padding: 0em;
+	border: 0 none;
+}
+
+ 
+#tooltip {
+	position: absolute;
+	z-index: 3000;
+	padding: 10px;
+	width: 100px;
+	height: 87px;
+	border: 0;
+	background: url('http://coswest.com/c/jquery/carousel3d/images/bubble.gif') no-repeat;
+	color: #000;
+}
+
+#tooltip h3 {
+	border-bottom: 1px solid #000;
+	padding: 0 0 .5em 0;
+}
+
+#tooltip h3 div { 
+	margin-top: .0em; 
+}
+
+#carousel2 {
+	display: none; margin-top:-50px;
+	z-index:10;
+}
+
+#carousel { 
+	margin-top: 0em;
+}
+
+
+img, div{
+	border: 0 none;
+}
+
+#server{
+    width:100%;
+	height:100%;
+	background: url("../img/e-portal.png") center no-repeat;
+	position: relative;
+	z-index:0;
+}
+
+
+#page{
+	width:80%;
+	height:522px;
+	margin:0px auto;
+	border: 1px solid #333333;
+}
+
+#page_head{
+	width:100%;
+	height:120px;
+	margin:0px auto;
+	background:#333333;
+
+}
+
+#page_corps{
+	width:100%;
+	height:325px;
+	margin:0px auto;
+	background-position:center;
+}
+
+#page_foot{
+	width:100%;
+	height:100px;
+	margin:0px auto;
+	border: 1px solid;
+	background:#000;
+}
+
+#footer{
+	display:block;
+	position:fixed;
+	top:28.5em; left:6.8em; width:49.7em; height:4.0em;
+	-moz-border-radius: 0px 0px 20px 0px;
+	border:1px solid #000;
+	background-color:#333333;
+	color:#fff;
+	text-align: justify;
+	font-weight:none;
+	padding:5px;
+}
+
+.shadow {
+	-moz-box-shadow: 4px 4px 10px #888;  
+	-webkit-box-shadow: 4px 4px 10px #888;  
+	box-shadow:4px 4px 6px #888;
+	-moz-border-radius: 10px; 
+	-webkit-border-radius: 10px; 
+	border-radius: 10px; 
+	behavior: url(/PIE.htc); 
+}
+
+.arrondi1 { 
+	-moz-border-radius: 20px 0px 0px 0px;
+}
+
+.arrondi { 
+	-moz-border-radius: 20px 0px 20px 0px; 
+	-webkit-border-radius: 10px; 
+	border-radius: 10px; 
+	behavior: url(/PIE.htc); 
+	-moz-box-shadow: 4px 4px 10px #888;  
+	-webkit-box-shadow: 4px 4px 10px #888;  
+	box-shadow:4px 4px 6px #888;
+}
+.bkLogoTop{
+	width:267px;
+	height:75px;
+	background:url('../img/ebp_topLogo.png') center no-repeat;
+}
+
+form{
+	margin: 0px;
+	padding: 0px;
+	/*width : 100%;*/
+	border: 0 none;
+	border-style: none;
+	vertical-align : top;
+}

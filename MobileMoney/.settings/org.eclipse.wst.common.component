@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?><project-modules id="moduleCoreId" project-version="1.5.0">
+    <wb-module deploy-name="MobileMoney">
+        <wb-resource deploy-path="/" source-path="/EarContent" tag="defaultRootSource"/>
+        <dependent-module archiveName="MobileMoney-Business.jar" deploy-path="/" handle="module:/resource/MobileMoney-Business/MobileMoney-Business">
+            <dependent-object/>
+            <dependency-type>uses</dependency-type>
+        </dependent-module>
+        <dependent-module archiveName="MobileMoney-DAO.jar" deploy-path="/" handle="module:/resource/MobileMoney-DAO/MobileMoney-DAO">
+            <dependent-object/>
+            <dependency-type>uses</dependency-type>
+        </dependent-module>
+        <dependent-module archiveName="MobileMoney-JSF.war" deploy-path="/" handle="module:/resource/MobileMoney-JSF/MobileMoney-JSF">
+            <dependent-object/>
+            <dependency-type>uses</dependency-type>
+        </dependent-module>
+        <dependent-module archiveName="MobileMoney-Client.jar" deploy-path="/" handle="module:/resource/MobileMoney-Client/MobileMoney-Client">
+            <dependency-type>uses</dependency-type>
+        </dependent-module>
+        <dependent-module archiveName="MobileMoney-JPA.jar" deploy-path="/" handle="module:/resource/MobileMoney-JPA/MobileMoney-JPA">
+            <dependency-type>uses</dependency-type>
+        </dependent-module>
+    </wb-module>
+</project-modules>

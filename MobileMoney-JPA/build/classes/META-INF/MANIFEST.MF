@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Class-Path: JPersistenceUtils-V2.jar
+ juel-2.2.1.jar
+ 

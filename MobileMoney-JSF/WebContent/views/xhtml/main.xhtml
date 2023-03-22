@@ -1,0 +1,50 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+	  xmlns:h="http://java.sun.com/jsf/html"
+	  xmlns:f="http://java.sun.com/jsf/core"
+	  xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+	<ui:composition template="template.xhtml">
+	
+		<ui:define name="MenuArea">
+			<ui:include src="/views/xhtml/menu.xhtml" />
+		</ui:define>
+		
+		<ui:define name="ContentArea">
+			<rich:panel id="#{informationBean.clientAreaID}" styleClass="client-panel-body">
+				<h:outputText value="#{informationBean.connectedUser}" /> <h:outputText value=", bienvenue dans Mobile Money " /> <h:form> <a4j:htmlCommandLink value="Quittez ici" action="#{informationBean.deconnexion}" immediate="true" /> </h:form>
+				
+				<h:panelGrid id="#{frmParameters.name}"> <ui:include src="#{frmParameters.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmSubscriber.name}"> <ui:include src="#{frmSubscriber.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmSouscriptions.name}"> <ui:include src="#{frmSouscriptions.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmPackages.name}"> <ui:include src="#{frmPackages.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmModifSouscription.name}"> <ui:include src="#{frmModifSouscription.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmSimulation.name}"> <ui:include src="#{frmSimulation.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmTransactions.name}"> <ui:include src="#{frmTransactions.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="pnlEC"> <ui:include src="#{frmTransactions.ECFileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmUssdTrans.name}"> <ui:include src="#{frmUssdTrans.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmTFJO.name}"> <ui:include src="#{frmTFJO.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmTransactions.frmRapportName}"> <ui:include src="#{frmTransactions.frmRapportFileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmPlageTransactions.name}"> <ui:include src="#{frmPlageTransactions.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmValidSubscriber.name}"> <ui:include src="#{frmValidSubscriber.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmProfilSubscriber.name}"> <ui:include src="#{frmProfilSubscriber.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmSuiviRobot.name}"> <ui:include src="#{frmSuiviRobot.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmMAJAbonnements.name}"> <ui:include src="#{frmMAJAbonnements.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmMAJDateFacturation.name}"> <ui:include src="#{frmMAJDateFacturation.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmParametreAlertes.name}"> <ui:include src="#{frmParametreAlertes.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmParametreAlertes.frmEditEmailAlertesName}"> <ui:include src="#{frmParametreAlertes.frmEditEmailAlertesFileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="#{frmSouscriptionsTemp.name}"> <ui:include src="#{frmSouscriptionsTemp.fileDefinition}" /> </h:panelGrid>
+				
+				<h:panelGrid id="pnlMsg"> <ui:include src="#{informationDialog.fileDefinition}" /> </h:panelGrid>
+				<h:panelGrid id="pnlReportViewwer"> <ui:include src="#{reportViewerDialog.fileDefinition}" /> </h:panelGrid>
+				
+			</rich:panel>
+			
+			<h:panelGrid id="#{informationBean.emptyClientAreaID}"></h:panelGrid>
+		</ui:define>
+		
+	</ui:composition>
+	
+</html>

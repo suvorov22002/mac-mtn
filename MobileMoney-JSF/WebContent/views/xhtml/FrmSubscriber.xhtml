@@ -1,0 +1,190 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#phone-contain account-contain { overflow-y:scroll; height:100px; width: 150px; margin: 0px 0; }
+		div#phone-contain account-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#phone-contain account-contain table td, div#phone-contain account-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeFrmSubscriber" reRender="#{frmSubscriber.areaToRender}" immediate="true" action="#{frmSubscriber.close}" />
+	
+	<script>
+
+		$( "#dialog-subscriber" ).dialog({
+			autoOpen: true,
+			width: 520,
+			close: function() {
+				closeFrmSubscriber();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-subscriber" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-subscriber" title="#{frmSubscriber.title}">
+		
+	<fieldset><legend>Recherche des informations du client (Banque)</legend>
+		<h:panelGrid id="panelSearch" columns="5">
+		
+			<h:outputText  value="Code du client :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmSubscriber.txtCustomerId}" style="width:80px" maxlength="7" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			<rich:spacer width="3px" />
+			<a4j:commandButton value="Rechercher" action="#{frmSubscriber.findSubscriberFromCBS}" immediate="true" reRender="gridFormSubscriber, gridPhonesAndAccounts, gridLangue, lang, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle(); window.open('#{frmSubscriber.urlSignature}', '_blank', 'toolbar=0,location=0,menubar=0');" />
+		</h:panelGrid>
+		
+		<h:panelGrid id="gridFormSubscriber" columns="3">
+		
+			<h:outputText  value="Nom du Client :" />
+			<rich:spacer width="5px" />
+			<h:inputText class="text" value="#{frmSubscriber.subscriber.customerName}" readonly="true" style="width:350px" />
+		
+			<h:outputText  value="Adresse :" />
+			<rich:spacer width="5px" />
+			<h:inputText class="text" value="#{frmSubscriber.subscriber.customerAddress}" readonly="true" style="width:350px" />
+		</h:panelGrid>
+	
+		<h:panelGrid id="gridPhonesAndAccounts" columns="6">
+			<h:dataTable id="phone-contain" value="#{frmSubscriber.phones}" var="phone" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+				<h:column>
+					<f:facet name="header"><h:outputText value=" " /></f:facet>
+					<h:selectBooleanCheckbox value="#{phone.checked}">
+						<a4j:support event="onchange" reRender="ecwSearch" ajaxSingle="true" />
+					</h:selectBooleanCheckbox>
+				</h:column>
+				<h:column>
+					<f:facet name="header"><h:outputText value="N° de téléphone(s)" /></f:facet>
+					<h:outputText value="#{phone.value}" />
+				</h:column>
+			</h:dataTable>
+			
+			<rich:spacer width="5px" />
+				
+			<h:dataTable id="account-contain" value="#{frmSubscriber.accounts}" var="acc" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+				<h:column>
+					<f:facet name="header"><h:outputText value=" " /></f:facet>
+					<h:selectBooleanCheckbox value="#{acc.checked}">
+						<a4j:support event="onchange" reRender="ecwSearch" ajaxSingle="true" />
+					</h:selectBooleanCheckbox>
+				</h:column>
+				<h:column>
+					<f:facet name="header"><h:outputText value="N° de compte(s)" /></f:facet>
+					<h:outputText value="#{acc.value}" />
+				</h:column>
+			</h:dataTable>
+			
+			<rich:spacer width="5px" />
+			<a4j:commandButton value="Valider" action="#{frmSubscriber.validateCBSInfos}" immediate="true" reRender="gridPhonesAndAccounts, gridFormSubscriber, panelSearch, ecwSearch, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			
+		</h:panelGrid>
+		
+	</fieldset>
+	
+	<fieldset><legend>Recherche des informations du client (MTN)</legend>
+		<h:panelGrid id="ecwSearch" columns="9">
+		
+			<h:outputText  value="N° de Telephone :" />
+			<rich:spacer width="3px" />
+			<h:inputText class="text" value="#{frmSubscriber.msisdn}" readonly="true" style="width:80px" maxlength="12" title="ex : 6xxxxxxxx" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true"  />
+			</h:inputText>
+			<rich:spacer width="10px" />
+			<a4j:commandButton value="Rechercher" action="#{frmSubscriber.findSubscriberFromECW}" immediate="true" reRender="ecwwalet, gridLangue, lang, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		
+			<rich:spacer width="25px" />
+			<a4j:commandButton value="Valider" action="#{frmSubscriber.generateAndSendOTP}" immediate="true" reRender="gridOTP, ecwwalet, gridLangue, lang, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		
+		</h:panelGrid>
+		
+		<h:panelGrid id="ecwwalet" columns="3">
+		
+			<h:outputText  value="Firstname :" />
+			<rich:spacer width="5px" />
+			<h:inputText disabled="true"  class="text" value="#{frmSubscriber.firstname}" readonly="true" style="width:350px" >
+			     <a4j:support event="onchange" ajaxSingle="true"  />
+			</h:inputText>
+		
+			<h:outputText  value="Lastname :" />
+			<rich:spacer width="5px" />
+			<h:inputText disabled="true" class="text" value="#{frmSubscriber.surname}" readonly="true" style="width:350px" >
+			    <a4j:support event="onchange" ajaxSingle="true"  />
+			</h:inputText>
+			
+			<h:outputText  value="Dob :" />
+			<rich:spacer width="5px" />
+			<h:inputText disabled="true" class="text" value="#{frmSubscriber.dob}" readonly="true" style="width:350px" >
+			  <a4j:support event="onchange" ajaxSingle="true"  />
+			</h:inputText>
+			
+			<h:outputText  value="Cin :" />
+			<rich:spacer width="5px" />
+			<h:inputText disabled="true" class="text" value="#{frmSubscriber.cin}" readonly="true" style="width:350px" >
+			  <a4j:support event="onchange" ajaxSingle="true"  />
+			</h:inputText>
+			
+		</h:panelGrid>
+		
+	</fieldset>
+		
+	<fieldset><legend>OTP</legend>
+	
+		<h:panelGrid id="gridOTP" columns="6">	
+			<h:outputText value="OTP : " styleClass="labelStyle"/>
+	        <h:inputText class="text" value="#{frmSubscriber.otp}" style="width:80px" maxlength="6">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			<rich:spacer width="3px" />
+			<a4j:commandButton value="Valider" disabled="#{!frmSubscriber.verifyOtp}" action="#{frmSubscriber.validerOTP}" immediate="true" reRender="gridOTP, actions, gridLangue, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+        </h:panelGrid>
+			
+	</fieldset>
+	 
+	<fieldset><legend>Impression</legend>
+	
+		<h:panelGrid id="gridLangue" columns="6">	
+			<h:outputText value="Langue d'impression : " styleClass="labelStyle"/>
+	        <h:selectOneMenu value="#{frmSubscriber.choixLang}" disabled="#{!frmSubscriber.valide}">
+				<f:selectItems value="#{frmSubscriber.languageItems}"/>
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:selectOneMenu>
+        </h:panelGrid>
+			
+	</fieldset>
+	
+	<h:panelGrid id="actions" columns="3">
+		<a4j:commandButton rendered="#{userHabilitation.btnValiderSouscriptionEnabled}" disabled="#{!frmSubscriber.valide}" value="Valider la souscription" action="#{frmSubscriber.saveSouscription}" immediate="true" reRender="panelSearch, gridFormSubscriber, gridPhonesAndAccounts, actions, gridOTP, pnlMsg, pnlReportViewwer, ecwSearch, ecwwalet, gridLangue" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+		<rich:spacer width="150px" />
+		<a4j:commandButton rendered="#{userHabilitation.btnExecuterBulkLinkageEnabled}" value="Exécuter le bulk linkage" action="#{frmSubscriber.executerBulkLinkage}" immediate="true" reRender="pnlMsg, pnlReportViewwer" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+	</h:panelGrid>
+	
+</div>
+				
+
+
+</h:form>
+</rich:panel>
+
+</f:subview>

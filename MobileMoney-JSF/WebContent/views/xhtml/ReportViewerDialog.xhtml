@@ -1,0 +1,67 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<h:form prependId="false">
+
+	<style>
+		div#viewer-contain { overflow-y:scroll; height:380px; width: 900px; margin: 10px 0; }
+	</style>
+	
+	<a4j:jsFunction name="closeReportViewerDialog" reRender="pnlReportViewwer" immediate="true" action="#{reportViewerDialog.close}" />
+	
+	<script>
+
+		$( "#dialog-viewer" ).dialog({
+			autoOpen: true,
+			width: 930,
+			close: function() {
+				closeReportViewerDialog();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-viewer" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+		
+	</script>
+
+<div id="dialog-viewer" title="#{reportViewerDialog.title}">
+
+	
+	<fieldset><legend>Visualisateur</legend>
+		
+		<div id="viewer-contain">
+		
+			<rich:panel styleClass="client-panel-body">
+				<a4j:mediaOutput id="reportOutput" uriAttribute="data" element="object" mimeType="#{reportViewerDialog.mimeType}" createContent="#{reportViewerDialog.paint}" cacheable="false" session="false" style="width:850px;height:680px;">
+                                    
+                </a4j:mediaOutput>
+                
+			</rich:panel>
+		
+		</div>
+		
+	</fieldset>
+	
+	
+</div>
+				
+
+</h:form>
+
+</f:subview>

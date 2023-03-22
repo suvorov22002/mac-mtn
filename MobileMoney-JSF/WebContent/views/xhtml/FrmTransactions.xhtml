@@ -1,0 +1,234 @@
+<f:subview xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://java.sun.com/jsf/html"
+      xmlns:f="http://java.sun.com/jsf/core"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:rich="http://richfaces.org/rich"
+      xmlns:a4j="http://richfaces.org/a4j">
+
+<rich:panel styleClass="client-panel-body">
+<h:form prependId="false">
+
+	<style>
+		div#transac-contain { overflow-y:scroll; height:380px; width: 970px; margin: 0px 0; }
+		div#transac-contain table { margin: 1em 0; border-collapse: collapse; width: 100%; }
+		div#transac-contain table td, div#transac-contain table th { border: 1px solid #eee; padding: .2em 2px; text-align: left; }
+	</style>
+	
+	<a4j:jsFunction name="closeFrmTransactions" reRender="#{frmTransactions.areaToRender}" immediate="true" action="#{frmTransactions.close}" />
+	
+	<script>
+
+		$( "#dialog-transaction" ).dialog({
+			autoOpen: true,
+			width: 1000,
+			close: function() {
+				closeFrmTransactions();
+			}
+		});
+		
+		$(function() {
+			$( "#dialog-transaction" ).dialog({
+				autoOpen: false,
+				show: {
+					effect: "scale",
+					duration: 1000
+				},
+				hide: {
+					effect: "explode",
+					duration: 1000
+				}
+			});
+
+		});
+	</script>
+
+<div id="dialog-transaction" title="#{frmTransactions.title}">
+
+	<fieldset><legend>Recherche</legend>
+		<h:panelGrid columns="1">
+			<h:panelGrid columns="10">		
+			<h:outputText  value="Du:" />
+			<h:inputText class="text" value="#{frmTransactions.txtDateDeb}" style="width:70px">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Au:" />
+			<h:inputText class="text" value="#{frmTransactions.txtDateFin}" style="width:70px">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="N° Tel.:" />
+			<h:inputText class="text" value="#{frmTransactions.searchPhone}" style="width:70px" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Nom Client:" />
+			<h:inputText class="text" value="#{frmTransactions.searchName}" style="width:150px">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			
+			<h:outputText  value="Opération:" />
+			<h:selectOneMenu value="#{frmTransactions.txtSearchOp}" class="text">
+				<f:selectItems value="#{frmTransactions.opItems}"/>
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:selectOneMenu>
+			</h:panelGrid>
+			
+			<h:panelGrid columns="10">
+			<h:outputText  value="Etat:" />
+			<h:selectOneMenu value="#{frmTransactions.txtSearchStatus}" class="text">
+				<f:selectItems value="#{frmTransactions.statutItems}"/>
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:selectOneMenu>
+			
+			<h:selectOneMenu value="#{frmTransactions.txtSearchPosted}" class="text">
+				<f:selectItems value="#{frmTransactions.postedItems}"/>
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:selectOneMenu>
+			
+			<rich:spacer width="3px" />
+			<a4j:commandButton rendered="#{userHabilitation.btnConsulterTransactionsEnabled}" value="Rechercher" action="#{frmTransactions.filterTransactions}" immediate="true" reRender="gridTransactions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			</h:panelGrid>
+		</h:panelGrid>
+	</fieldset>
+		
+	<fieldset><legend>Liste des Transactions</legend>
+	
+	<div id="transac-contain">
+		<h:dataTable id="gridTransactions" value="#{frmTransactions.transactions}" var="transac" styleClass="ui-widget ui-widget-content" headerClass="ui-widget-header" rowClasses="row-style-pair, row-style-impair">
+		
+			<h:column>
+				<f:facet name="header"><h:outputText value=" " /></f:facet>
+				<h:selectBooleanCheckbox value="#{transac.selected}">
+					<a4j:support event="onchange" ajaxSingle="true" />
+				</h:selectBooleanCheckbox>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N°" /></f:facet>
+				<h:outputText value="#{frmTransactions.num}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Opération" /></f:facet>
+				<h:outputText value="#{transac.typeOperation.value}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Client" /></f:facet>
+				<h:outputText value="#{transac.subscriber.customerName}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Date" /></f:facet>
+				<h:outputText value="#{transac.formattedDate}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Heure" /></f:facet>
+				<h:outputText value="#{transac.hour}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Etat" /></f:facet>
+				<h:outputText value="#{transac.status.value}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="N° Tel." /></f:facet>
+				<h:outputText value="#{transac.phoneNumber}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Compte" /></f:facet>
+				<h:outputText value="#{transac.account}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Montant" /></f:facet>
+				<h:outputText value="#{transac.formattedMontant}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" >
+					<f:convertNumber integerOnly="true"></f:convertNumber>
+				</h:outputText>
+			</h:column>
+				
+			<h:column>
+				<f:facet name="header"><h:outputText value="Commissions" /></f:facet>
+				<h:outputText value="#{transac.commissions}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" >
+					<f:convertNumber integerOnly="true"></f:convertNumber>
+				</h:outputText>
+			</h:column>
+				
+			<h:column>
+				<f:facet name="header"><h:outputText value="Taxes" /></f:facet>
+				<h:outputText value="#{transac.roundedTaxes}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" >
+					<f:convertNumber integerOnly="true"></f:convertNumber>
+				</h:outputText>
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Erreur" /></f:facet>
+				<h:outputText value="#{transac.formattedTrxId} #{transac.exceptionCode.value}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+			
+			<h:column>
+				<f:facet name="header"><h:outputText value="Reconcilier" /></f:facet>
+				<h:graphicImage value="#{informationBean.graphicUIURL}/images/#{transac.reconcilier ? 'apply16x.png' : 'DeleteRed16x.png'}" />
+				<h:outputText value="#{transac.reconcilier ? transac.message : ''}" style="color:#{(transac.reconcilier and !(transac.message eq 'OK') and !(transac.message eq null)) ? 'blue' : (!transac.success ? 'red' : 'black')}" />
+			</h:column>
+				
+			<h:column>
+				<f:facet name="header"><h:outputText value="Posté?" /></f:facet>
+				<h:graphicImage value="#{informationBean.graphicUIURL}/images/#{transac.posted ? 'apply16x.png' : 'DeleteRed16x.png'}" />
+			</h:column>
+				
+		</h:dataTable>
+		</div>
+	</fieldset>
+		
+	<fieldset><legend>Controle des réservations</legend>
+		<h:panelGrid id="pnlControl" columns="21">
+			<h:outputText  value="Période : " />
+			<h:selectOneMenu value="#{frmTransactions.periode}" class="text">
+				<f:selectItems value="#{frmTransactions.periodeItems}"/>
+				<a4j:support event="onchange" reRender="pnlControl" ajaxSingle="true" />
+			</h:selectOneMenu>
+			<h:outputText value="De : " />
+			<h:inputText id="heureDebut" class="text" value="#{frmTransactions.txtHeureDeb}" disabled="#{!frmTransactions.heures}" style="width:30px" maxlength="2" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			<h:outputText value="A : " />
+			<h:inputText id="heureFin" class="text" value="#{frmTransactions.txtHeureFin}" disabled="#{!frmTransactions.heures}" style="width:30px" maxlength="2" onkeypress="controleChiffres(event)">
+				<a4j:support event="onchange" ajaxSingle="true" />
+			</h:inputText>
+			<a4j:commandButton rendered="#{userHabilitation.btnCtrlReservationsEnabled}" value="Génerer" title="Génerer le rapport de contrôle des réservations" action="#{frmTransactions.genererRapportControleReservations}" immediate="true" reRender="pnlControl, pnlMsg, lnkControleFile" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="10px" />
+			<h:outputLink id="lnkControleFile" rendered="#{frmTransactions.exportedFileExist}" target="_blank" value="#{informationBean.downloadDataURL}/#{frmTransactions.controleReservationsFileName}"> <h:outputText value="#{frmTransactions.controleReservationsFileName}" /> </h:outputLink>
+		
+		</h:panelGrid>
+	</fieldset>
+	<fieldset><legend>Traitement de la compensation</legend>
+		<h:panelGrid id="pnlCommands" columns="21">
+			<a4j:commandButton disabled="#{!frmTransactions.doSearch}" rendered="#{userHabilitation.btnPosterECIntoDeltaEnabled}" value="Vérifier EC" title="Charger les transactions à comptabiliser et vérifier les écritures comptables" action="#{frmTransactions.chargerTrxCompensation}" immediate="true" reRender="lnkECFile, pnlCommands, gridTransactions, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+			<a4j:commandButton disabled="#{!frmTransactions.visualiser}" rendered="false" value="Visualiser Rapport EC Compensation" title="Extraire et visualiser le rapport de compensation" action="#{frmTransactions.visualiserECCompensation}" immediate="true" reRender="lnkECFile, pnlCommands, #{frmTransactions.frmRapportName}, pnlReportViewwer, pnlMsg"  styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" /> 
+			<a4j:commandButton disabled="#{!frmTransactions.postFile}" rendered="#{userHabilitation.btnPosterECIntoDeltaEnabled}" value="Transférer fichier EC" title="Transférer le fichier des Ecritures Comptables de compensation pour intégration dans le CoreBanking" action="#{frmTransactions.transfertFichierECCompensation}" immediate="true" reRender="lnkECFile, gridTransactions, pnlCommands, #{frmTransactions.frmRapportName}, pnlReportViewwer, pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+			<a4j:commandButton disabled="true" rendered="false" value="Archiver" title="Archiver les transactions sélectionnées" action="#{frmTransactions.archiverEcritures}" immediate="true" reRender="pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="3px" />
+			<a4j:commandButton disabled="true" rendered="false" value="Purger" title="Purger la liste des transactions sélectionnées" action="#{frmTransactions.purgerEcritures}" immediate="true" reRender="pnlMsg" styleClass="ui-button ui-widget ui-state-default ui-corner-all" onclick="startWaitInStyle();" oncomplete="stoptWaitInStyle();" />
+			<rich:spacer width="10px" />
+			<h:outputLink id="lnkECFile" rendered="#{frmTransactions.exportedFileExist}" target="_blank" value="#{informationBean.downloadDataURL}/#{frmTransactions.ecFileNameRapp}"> <h:outputText value="#{frmTransactions.ecFileNameRapp}" /> </h:outputLink>
+			 
+		</h:panelGrid>
+	</fieldset>
+	
+</div>
+
+
+</h:form>
+
+
+</rich:panel>
+
+</f:subview>
