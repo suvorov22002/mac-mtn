@@ -14,5 +14,4 @@ public interface IMobileMoneyDAOAPILocal {
 	
 	public ClientProduitDAO getClientProduitDAO();
 	public SendEventToCbsDAO getSendEventToCbsDAO();
-	
 }

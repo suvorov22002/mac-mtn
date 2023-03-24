@@ -177,6 +177,16 @@ public class FrmSubscriber extends AbstractPortalForm {
 			return false;
 		}
 
+		// Si le client a deja souscrit
+//		if( MobileMoneyViewHelper.appManager.subscriptionAlreadyExist( subscriber.getCustomerId() ) )  {
+//
+//			// Message d'avertissement
+//			PortalInformationHelper.showInformationDialog("Ce client a deja souscrit au service Pull/Push From Account!", InformationDialog.DIALOG_WARNING);
+//			
+//			// Annulation
+//			return false;
+//		}
+		
 		// Si aucun compte n'a ete selectionne
 		if( subscriber == null)  {
 
@@ -186,13 +196,37 @@ public class FrmSubscriber extends AbstractPortalForm {
 			// Annulation
 			return false;
 		}
-				
+		
+//		if(!validatePhoneInCBS()){
+//			// Message d'information
+//			PortalInformationHelper.showInformationDialog("Le numéro de téléphone "+ msisdn +" n'existe pas parmi les informations du client. Impossible de valider la souscription", InformationDialog.DIALOG_WARNING);
+//			// Annulation
+//			return false;
+//		}
+		
+		// Mode test
+//		if(!param.getEtatServiceSDP().equals(StatutService.TEST)){
+//			logger.error("OPERATION EXECUTEE EN MODE MAINTENANCE PAR "+MobileMoneyViewHelper.getSessionUser());
+//			// Si les informations cote MTN ne sont pas disponibles
+//			if(StringUtils.isBlank(firstname) && StringUtils.isBlank(surname) 
+//					&& StringUtils.isBlank(cin) && StringUtils.isBlank(dob)){
+//				
+//				// Message d'avertissement
+//				PortalInformationHelper.showInformationDialog("Aucune information client cote MTN. Impossible de valider la souscription", InformationDialog.DIALOG_WARNING);
+//				
+//				// Annulation
+//				return false;
+//			}
+//		}
+		
 		// Si aucun compte n'a ete selectionne
 		if( subscriber.getAccounts().isEmpty())  {
 
+			// Message d'avertissement
 			PortalInformationHelper.showInformationDialog("Aucun compte n'a été sélectionné. Impossible de valider la souscription", InformationDialog.DIALOG_WARNING);
-			return false;
 			
+			// Annulation
+			return false;
 		}
 		
 		// Si le nbre de cpte selectionnes depasse le maximum parametre
@@ -215,6 +249,15 @@ public class FrmSubscriber extends AbstractPortalForm {
 			return false;
 		}
 
+		// Si aucun numero de telephone n'a ete fourni
+//		for(String s : subscriber.getPhoneNumbers()) if( !s.startsWith(MoMoHelper.PHONES_MASK) || s.length() != MoMoHelper.PHONES_LENGTH )  {
+//
+//			// Message d'avertissement
+//			PortalInformationHelper.showInformationDialog("Numéro de Téléphone Incorrect!.", InformationDialog.DIALOG_WARNING);
+//			
+//			// Annulation
+//			return false;
+//		}
 		
 		// Si le nbre de numeros de telephones fourni depasse le maximum parametre
 		if( subscriber.getPhoneNumbers().size() > param.getMaxPhoneNumbers() )  {
@@ -240,6 +283,21 @@ public class FrmSubscriber extends AbstractPortalForm {
 			}
 			
 		}
+		
+		// Si l'un des numeros de telephone fournit appartient deja a un client dont la souscription est en attente de validation
+//		for(String s : subscriber.getPhoneNumbers()) {
+//			
+//			if(MobileMoneyViewHelper.appManager.verifySubscriberFromPhoneNumber(s) != null) {
+//
+//				// Message d'avertissement
+//				PortalInformationHelper.showInformationDialog("le numéro de téléphone "+ s +" appartient déjà à une souscription en attente de validation.", InformationDialog.DIALOG_WARNING);
+//				
+//				// Annulation
+//				return false;
+//					
+//			}
+//			
+//		}
 				
 		return true;
 	}
@@ -892,7 +950,7 @@ public class FrmSubscriber extends AbstractPortalForm {
 					cal.add(Calendar.MINUTE, 5);
 					
 					// Recherche de la signature du client
-					urlSignature = MobileMoneyViewHelper.appManager.getLienSig(subscriber.getFirstAccount(), MobileMoneyViewHelper.getSessionUser().getLogin());
+					urlSignature = MobileMoneyViewHelper.appManager.getLienSig(subscriber.getFirstAccount().split("-")[0], subscriber.getFirstAccount().split("-")[1], "  ", subscriber.getCustomerId(), new Date(), new SimpleDateFormat("HHmmss").format(cal.getTime()), MobileMoneyViewHelper.getSessionUser().getLogin());
 					
 					subscriber.getAccounts().clear();
 					subscriber.getPhoneNumbers().clear();
@@ -961,10 +1019,10 @@ public class FrmSubscriber extends AbstractPortalForm {
 				
 				// Envoyer le mail au GFC et DA
 				users = MobileMoneyViewHelper.appManager.getGFCDA(MobileMoneyViewHelper.getSessionUser(), subscriber.getFirstAccount());
-				//logger.info("NB USERS : "+users.size());
+				logger.info("NB USERS : "+users.size());
 				List<String> listDest = new ArrayList<>();
 				for(User user : users){
-					//logger.info("USERS : "+user.getEmail());
+					logger.info("USERS : "+user.getEmail());
 					listDest.add(user.getEmail());
 				}
 				

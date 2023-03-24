@@ -13,7 +13,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.sql.Timestamp;
+import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -44,16 +44,10 @@ import org.apache.commons.lang3.time.DateFormatUtils;
 import org.apache.commons.lang3.time.DateUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.util.EntityUtils;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
-import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
-import org.codehaus.jettison.json.JSONObject;
 import org.hibernate.FetchMode;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
@@ -64,12 +58,6 @@ import com.afb.dpd.mobilemoney.dao.IMobileMoneyDAOLocal;
 import com.afb.dpd.mobilemoney.dao.IPullPushDAOLocal;
 import com.afb.dpd.mobilemoney.dao.api.exception.DAOAPIException;
 import com.afb.dpd.mobilemoney.dao.api.interfaces.IMobileMoneyDAOAPILocal;
-import com.afb.dpd.mobilemoney.jpa.dto.Account;
-import com.afb.dpd.mobilemoney.jpa.dto.Client;
-import com.afb.dpd.mobilemoney.jpa.dto.ResponseData;
-import com.afb.dpd.mobilemoney.jpa.dto.ResponseDataAccount;
-import com.afb.dpd.mobilemoney.jpa.dto.ResponseDataClient;
-import com.afb.dpd.mobilemoney.jpa.dto.Shared;
 import com.afb.dpd.mobilemoney.jpa.entities.AccountInfos;
 import com.afb.dpd.mobilemoney.jpa.entities.AccountUtils;
 import com.afb.dpd.mobilemoney.jpa.entities.Commissions;
@@ -96,7 +84,6 @@ import com.afb.dpd.mobilemoney.jpa.enums.TypeOperation;
 import com.afb.dpd.mobilemoney.jpa.enums.TypeValeurFrais;
 import com.afb.dpd.mobilemoney.jpa.exception.MoMoException;
 import com.afb.dpd.mobilemoney.jpa.tools.ClientProduit;
-import com.afb.dpd.mobilemoney.jpa.tools.DateUtil;
 import com.afb.dpd.mobilemoney.jpa.tools.Doublon;
 import com.afb.dpd.mobilemoney.jpa.tools.Equilibre;
 import com.afb.dpd.mobilemoney.jpa.tools.EquilibreComptes;
@@ -176,8 +163,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 	private Connection conCBS = null;
 	private DataSystem dsCBS = null;
-	private DataSystem dsAIF = null;
-	private DataSystem dsCbs = null;
 	private Parameters params = null;
 
 	/**
@@ -199,7 +184,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	private  List<FactMonthDetails> details = new ArrayList<FactMonthDetails>();
 	// FIN ADD
 	public final static String DATE_HOUR_FORMAT_TT="yyMMddHHmmssSSSS";
-	private static final int TIMEOUT = 120;//seconds
 	
 	public Long now(){
 //		String _format = RandomStringUtils.randomNumeric(4);
@@ -1263,32 +1247,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		}catch(Exception e){}
 	}
 	
-	private void findAIFDataSystem() {
-
-		try {
-
-			// Demarrage du service Facade du portail
-			IFacadeManagerRemote portalFacadeManager = (IFacadeManagerRemote) new InitialContext().lookup( PortalHelper.APPLICATION_EAR.concat("/").concat( IFacadeManagerRemote.SERVICE_NAME ).concat("/remote") );
-
-			// Recuperation de la DS de cnx au CBS
-			dsAIF = (DataSystem) portalFacadeManager.findByProperty(DataSystem.class, "code", "AIF");
-
-		}catch(Exception e){}
-	}
-	
-	private void findCBSServicesDataSystem() {
-
-		try {
-
-			// Demarrage du service Facade du portail
-			IFacadeManagerRemote portalFacadeManager = (IFacadeManagerRemote) new InitialContext().lookup( PortalHelper.APPLICATION_EAR.concat("/").concat( IFacadeManagerRemote.SERVICE_NAME ).concat("/remote") );
-
-			// Recuperation de la DS de cnx au CBS
-			dsCbs = (DataSystem) portalFacadeManager.findByProperty(DataSystem.class, "code", "AFB-SERVICE-CBS");
-
-		}catch(Exception e){}
-	}
-	
 
 	/*
 	 * (non-Javadoc)
@@ -1392,17 +1350,14 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// Initialisation
 		Subscriber subscriber = null;
 		String in = "";
-		List<String> accountTypes = new ArrayList<>();
 
 		// Recherche des parametres generaux
 		// checkGlobalConfig(); //Parameters params = findParameters();
 		params = findParameters();
-		
 
 		// Si les types de cptes autorises ont ete parametres
 		if( params.getAccountTypes() != null && !params.getAccountTypes().isEmpty()) {
-			
-			accountTypes = params.getAccountTypes();
+
 			for(String s : params.getAccountTypes()) in += "'" + s + "'" + ", ";
 
 		}
@@ -1413,92 +1368,53 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		try {
 
 			// Initialisation de DataStore d'Amplitude
-			//if(dsCBS == null) findCBSDataSystem();
-			if(dsAIF == null) findAIFDataSystem();
-			
-			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
-				
-				List<Client> listClient = new ArrayList<>();
-				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/customer/customerdetails/"+customerId);
-			    getRequest.setHeader("content-type", "application/json");
-			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
-			    HttpEntity entity = null;
-			    entity = response.getEntity();
-			   
-			    if(entity != null) {
-			    	String content = EntityUtils.toString(entity);
-					JSONObject json = new JSONObject(content);
-					
-					 //ResponseData responseData = Shared.mapToObject(json);
-					 ResponseDataClient responseData = Shared.mapToResponseDataClient(json);
-					 String responseCode = responseData.getCode();
-					 
-					 if ("200".equals(responseCode)) {
-						 
-						 listClient = responseData.getDatas();
-						 for(Client client : listClient) {
-							 
-							 subscriber = new Subscriber(client.getMatricule(), client.getCustomerName(), client.getAdresse1() + " " + client.getVille());
-							 subscriber.setPid(client.getNumeroPiece());
-							 
-							 if (StringUtils.isNotBlank(client.getNumTelephone1())) {
-								 subscriber.getPhoneNumbers().add(client.getNumTelephone1());
-							 }
-							 if (StringUtils.isNotBlank(client.getNumTelephone2())) {
-								 subscriber.getPhoneNumbers().add(client.getNumTelephone2());
-							 }
-							 
-	    				 }
-						 
-						 getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/account/getlistecompte/"+customerId);
-    				     getRequest.setHeader("content-type", "application/json");
-    				     response = Shared.getClosableHttpClient().execute(getRequest);
-    				     entity = null;
-    				     entity = response.getEntity();
-    				    
-    				     if(entity != null) {
-    				    	 
-    				    	 List<Account> listComptes = new ArrayList<>();
-    				    	 content = EntityUtils.toString(entity);
-							 json = new JSONObject(content);
-							
-							 ResponseDataAccount responseDataAcc = Shared.mapToResponseDataAccount(json);
-							 responseCode = responseDataAcc.getCode();
-							 
-							 if ("200".equals(responseCode)) {
-								 
-								 listComptes = responseDataAcc.getDatas();
-								 
-								 for(Account account : listComptes) {
+			if(dsCBS == null) findCBSDataSystem();
 
-    								 if(!account.isCfe() && !account.isIfe() && accountTypes.contains(account.getCodeProduit())) {
-    									 
-    									 subscriber.getAccounts().add( account.getAgence().concat("-").concat(account.getNcp()).concat("-").concat(account.getCle()) );
-    									 
-    								 }
-    								 
-    							 }	 
-							 }
-							 else {
-								 return null;
-							 }	 
-    				     } 
-					 }
-					 else {
-						 return subscriber;
-					 } 
-			    }
-			    else {
-			    	return null;
-			    }
-			   
+			// Recherche de la liste des types de comptes dans le CBS
+			//ResultSet rs = executeFilterSystemQuery(dsCBS, "select distinct bkcom.age, bkcom.ncp, bkcom.clc, bkcli.nom, nvl(bkcli.pre, ' ') as pre, bkadcli.adr1, bkadcli.ville from bkcom, bkcli LEFT JOIN bkadcli ON bkcli.cli = bkadcli.cli where bkcom.cli = bkcli.cli and bkadcli.cli = bkcli.cli and bkcom.cfe='N' and bkcom.ife='N' and bkcom.cli='"+ customerId +"'" + (in.isEmpty() ? "" : " and bkcom.cpro in " + in), null);
+			ResultSet rs = executeFilterSystemQuery(dsCBS, "select distinct bkcom.age, bkcom.ncp, bkcom.clc, bkcli.nom, nvl(bkcli.pre, ' ') as pre, bkadcli.adr1, bkadcli.ville from bkcom, bkcli LEFT JOIN bkadcli ON bkcli.cli = bkadcli.cli where bkcom.cli = bkcli.cli and bkcom.cfe='N' and bkcom.ife='N' and bkcom.cli='"+ customerId +"'" + (in.isEmpty() ? "" : " and bkcom.cpro in " + in), null);
+
+			// S'il existe au moins un resultat
+			if(rs != null && rs.next()) {
+
+				// Recuperation du nom et de l'adresse du souscripteur
+				subscriber = new Subscriber(customerId, rs.getString("nom").trim().concat(" ").concat( rs.getString("pre").trim() ), rs.getString("adr1") + " " + rs.getString("ville"));
+
+				// Ajout du premier compte
+				subscriber.getAccounts().add( rs.getString("age").concat("-").concat(rs.getString("ncp")).concat("-").concat(rs.getString("clc")) );
+
+				// Parcours des autres comptes
+				while(rs != null && rs.next()) {
+
+					// Ajout du compte trouve a la liste des comptes du clients
+					if( !subscriber.getAccounts().contains( rs.getString("age").concat("-").concat(rs.getString("ncp")).concat("-").concat(rs.getString("clc")) )) subscriber.getAccounts().add( rs.getString("age").concat("-").concat(rs.getString("ncp")).concat("-").concat(rs.getString("clc")) );
+
+				}
+				// Recherche du Numero de CNI du client
+				rs = executeFilterSystemQuery(dsCBS, "select num from bkpidcli where cli='"+ subscriber.getCustomerId() +"'", null);
+				subscriber.setPid( rs != null && rs.next() ? rs.getString("num") : null );
+
+				// Recherche des Numeros de telephone du Client
+				rs = executeFilterSystemQuery(dsCBS, "SELECT num from bktelcli where cli='"+ subscriber.getCustomerId() +"' order by typ", null);
+				if(rs != null) {
+					while(rs.next()) subscriber.getPhoneNumbers().add(rs.getString("num"));
+					rs.close();
+				}
+
 			}
 
-			
-		} catch(Exception e){
-			e.printStackTrace();
-			return subscriber;
-	    }
+			// Fermeture des connexions
+			if(rs != null) {
+				rs.close(); 
+				if(rs.getStatement() != null) {
+					rs.getStatement().close();
+				}
+			} 
+			//params = null;
+			// CBS_CNX_OPTI
+			if(conCBS != null ) conCBS.close();
+
+		} catch(Exception e){e.printStackTrace();}
 
 		// Retourne le client trouve
 		return subscriber;
@@ -1707,7 +1623,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		Map<TypeOperation, Commissions> mapComs = ConverterUtil.convertCollectionToMap(params.getCommissions(), "operation");
 
 		Long numEc = 1l;
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Double tva = 19.25d;
 		Double frais = 0d;
 		Double tauxCom = 0d;
@@ -2475,49 +2391,29 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	public boolean isCompteFerme(String numCompte) {
 
 		boolean res = false;
-		
-		try {
-			// Initialisation de DataStore d'Amplitude
-			if(dsAIF == null) findAIFDataSystem();
-			
-			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
-				String ncp = numCompte.split("-")[1];
-				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/account/getlistecompte/"+ncp.substring(0, 7));
-			    getRequest.setHeader("content-type", "application/json");
-			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
-			    HttpEntity entity = null;
-			    entity = response.getEntity();
-			    
-			    if(entity != null) {
-			    	 
-			    	 List<Account> listComptes = new ArrayList<>();
-			    	 String content = EntityUtils.toString(entity);
-					 JSONObject json = new JSONObject(content);
-					
-					 ResponseDataAccount responseDataAcc = Shared.mapToResponseDataAccount(json);
-					 String responseCode = responseDataAcc.getCode();
-					 
-					 if ("200".equals(responseCode)) {
-						 
-						 listComptes = responseDataAcc.getDatas();
-						 
-						 for(Account account : listComptes) {
-							 
-							 System.out.println("IFE: " + account.isIfe());
-							 System.out.println("CFE: " + account.isCfe());
-							 
-							 if (ncp.equalsIgnoreCase(account.getNcp()) && !account.isCfe() && !account.isIfe() ) {
-									 res = true;
-							 }
-							 
-						 }	 
-					 } 
-			     }
-			}
 
+		try {
+
+			// Initialisation de DataStore d'Amplitude
+			if(dsCBS == null) findCBSDataSystem();
+
+			ResultSet rs = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ numCompte.split("-")[0], numCompte.split("-")[1], numCompte.split("-")[2] });
+
+			if(rs == null || !rs.next()) res = true;
+
+			if(rs != null) {
+				rs.close(); 
+				if(rs.getStatement() != null) {
+					rs.getStatement().close();
+				}
+			}
+			// CBS_CNX_OPTI
+			if(conCBS != null ) conCBS.close();
+			
 		} catch(Exception e){}
 
 		return res;
+
 	}
 	
 
@@ -4146,7 +4042,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 //		if(dsCBS == null) findCBSDataSystem();
 //
 //		// Recuperation de la date comptable du jour
-//		Date dco = getDateComptable();
+//		Date dco = getDateComptable(dsCBS);
 //
 //		// Ouverture d'une cnx vers la BD du Core Banking
 //		if(conCBS == null || conCBS.isClosed()) conCBS = getSystemConnection(dsCBS);
@@ -4213,7 +4109,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		if(dsCBS == null) findCBSDataSystem();
 		
 		// Recuperation de la date comptable du jour
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Ouverture d'une cnx vers la BD du Core Banking
 		if(conCBS == null || conCBS.isClosed()) conCBS = getSystemConnection(dsCBS);
@@ -4449,38 +4345,25 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	 * @param dsCBS
 	 * @return date comptable
 	 */
-	public Date getDateComptable() throws Exception {
-		
-		Date d = null;
-		
-		if(dsAIF == null) findAIFDataSystem();
-		
-		if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
-			
-			HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/nomenclature/getdatecomptable");
-		    getRequest.setHeader("content-type", "application/json");
-		    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
-		    HttpEntity entity = null;
-		    entity = response.getEntity();
-		 
-		    if(entity != null) {
-		    	 
-		    	 String content = EntityUtils.toString(entity);
-				 JSONObject json = new JSONObject(content);
-	
-				 String responseCode = json.getString("code");
-				
-				 if ("200".equals(responseCode)) {
-					 String dat = json.getString("data");
-					 System.out.println("Date: " + dat);
-					 d = DateUtil.parse(dat, DateUtil.DATE_MINUS_FORMAT_SINGLE);
-					 
-					 return d;
-				 } 
-		     }
+	public Date getDateComptable(DataSystem dsCBS) throws Exception {
+
+		Date dco = new Date();
+
+		ResultSet rs = executeFilterSystemQuery(dsCBS, "select lib2, mnt1, mnt2 from bknom where ctab=? and cacc=?", new Object[]{"001", "00099"});
+		if(rs != null && rs.next()){
+			String date = rs.getString("lib2").trim().equals("FE") ? rs.getString("mnt1").length() == 7 ? "0".concat(rs.getString("mnt1")) : rs.getString("mnt1") : rs.getString("mnt2").length() == 7 ? "0".concat(rs.getString("mnt2")) : rs.getString("mnt2");
+			dco = new SimpleDateFormat("ddMMyyyy").parse(date);
+			if(rs != null) {
+				rs.close(); 
+				if(rs.getStatement() != null) {
+					rs.getStatement().close();
+				}
+			}
 		}
+		// CBS_CNX_OPTI
+		if(conCBS != null ) conCBS.close();
 		
-		return d;
+		return dco;
 
 	}
 	
@@ -5150,7 +5033,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// DataStore vers Amplitude
 		if(dsCBS == null) findCBSDataSystem();
 
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Parcours des Evenements trouves
 		for(bkeve eve : eves){
@@ -5195,7 +5078,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		int nb = 0;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5224,7 +5107,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		int nb = 0;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5253,7 +5136,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5282,7 +5165,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5312,7 +5195,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5341,7 +5224,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5371,7 +5254,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Equilibre> data = new ArrayList<Equilibre>();
@@ -5417,7 +5300,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Equilibre> data = new ArrayList<Equilibre>();
@@ -5451,7 +5334,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		EquilibreComptes data = new EquilibreComptes();
@@ -5497,7 +5380,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		EquilibreComptes data = new EquilibreComptes();
@@ -5543,7 +5426,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		EquilibreComptes data = new EquilibreComptes();
@@ -5590,7 +5473,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5625,7 +5508,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5660,7 +5543,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5695,7 +5578,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5730,7 +5613,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5765,7 +5648,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5800,7 +5683,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Doublon> data = new ArrayList<Doublon>();
@@ -5846,7 +5729,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Doublon> data = new ArrayList<Doublon>();
@@ -6200,7 +6083,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		// Initialisations
 		Long numEc = 1l;
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Date dvaDebit = getDvaDebit();
 
 		//Long numEve = getLastEveNum(dsCBS);
@@ -6703,7 +6586,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		// Recuperation de la DataSource du Core Banking
 		if(dsCBS == null) findCBSDataSystem();
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 
 		// Marqueur du mode nuit
 		boolean nuit = isModeNuit();
@@ -6824,7 +6707,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 //
 //		// Recuperation de la DataSource du Core Banking
 //		if(dsCBS == null) findCBSDataSystem();
-//		Date dco = getDateComptable();
+//		Date dco = getDateComptable(dsCBS);
 //		//Long numEve = getLastEveNum(dsCBS);
 //		Date dvaDebit = getDvaDebit();
 //		Date dvaCredit = getDvaCredit();
@@ -7079,7 +6962,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		mntD = 0d; mntC = 0d; nbrC = 0; nbrD = 0;
 		// FIN ADD
 		
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		//Long numEve = getLastEveNum(dsCBS);
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
@@ -7384,7 +7267,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		mntD = 0d; mntC = 0d; nbrC = 0; nbrD = 0;
 		// FIN ADD
 		
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		//Long numEve = getLastEveNum(dsCBS);
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
@@ -7937,7 +7820,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		if(dsCBS == null) findCBSDataSystem();
 
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
 
@@ -8474,41 +8357,26 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	 *	Pour avoir le lien finall la fonction finale est :
 	 */
 	@Override
-	public String getLienSig(String ncp, String utic) throws Exception {
-		
-	    System.out.println("Signature: " + ncp + " Uti: " + utic);
-	    String lienSig = null;
+	public String getLienSig(String age, String ncp, String suf, String cli, Date datec, String heurec, String utic) throws Exception {
+		String valid;
+
+		//gération clé
 		double cle = genererCle();
-		if (dsCbs == null) findCBSServicesDataSystem();
-		if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
-			
-			HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/kyc/process/geturlsignature/" + ncp + "/" + utic);
-		    getRequest.setHeader("content-type", "application/json");
-		    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
-		    HttpEntity entity = null;
-		    entity = response.getEntity();
-		    
-		    if(entity != null) {
-		    	
-		    	 if(entity != null) {
-		    		 
-		    		 String content = EntityUtils.toString(entity);
-					 JSONObject json = new JSONObject(content);
-					 
-					 String responseCode = json.getString("code");
-					 
-					 if ("200".equals(responseCode)) {
-						 lienSig = json.getString("data");
-						 System.out.println("Lien: " + lienSig);
-					 }
-		    		 
-		    	 }
-		    	
-		    } 
-		}
-		
+
+		//simple test pour se rassurer que la clé n'existe pas encore voir cette méthode plus bas
+		//while(!cleSigExiste(cle)) cle++;
+
+		// validité coe je l'ai dit date du serveur + une minute formaté
+		valid = new SimpleDateFormat("yyMMdd").format(datec) + heurec;
+
+		//insertion bksig_audit
+		insertIntoBksigAudi(age, ncp, suf, cli, datec, heurec, utic);
+
+		// insertion bksigc
+		insertIntoBksigC(cle, valid, utic, cli, ncp, suf, age);
+
 		// return du lien final 
-		return lienSig;
+		return getLienSig() + new DecimalFormat("#").format(cle); // le type double cle est formaté sous forme de String sans partie décimal DecimalFormat df = new DecimalFormat("#");
 	}
 
 	
@@ -8955,7 +8823,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		AccountInfos  cpteLiaisonAbonne = null;
 		// Initialisations
 		Long numEc = 1l;
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Date dvaDebit = getDvaDebit();
 
 		//Long numEve = getLastEveNum(dsCBS);
@@ -10827,7 +10695,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		if(dsCBS == null) findCBSDataSystem();
 
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
 		logger.info("DCO : "+new SimpleDateFormat("dd-MM-yy").format(dco));
@@ -11020,7 +10888,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// Initialisation de DataStore d'Amplitude
 		if(dsCBS == null) findCBSDataSystem();
 
-		Date dco = getDateComptable();
+		Date dco = getDateComptable(dsCBS);
 				
 		// Ouverture d'une cnx vers la BD du Core Banking
 		if(conCBS == null || conCBS.isClosed()) conCBS = getSystemConnection(dsCBS);
@@ -11879,7 +11747,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			params = findParameters();
 			// Initialisation de DataStore d'Amplitude
 			if(dsCBS == null) findCBSDataSystem();
-			Date dco = getDateComptable();
+			Date dco = getDateComptable(dsCBS);
 			Date dateDebut = DateUtils.addDays(dco, -params.getPeriodeVerifTrxCBS());
 			logger.info("PERIODE : "+dateDebut+" - "+dco);
 			
@@ -11921,42 +11789,21 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		try {
 			logger.info("CHECKING NEW ACCOUNT [NCP : "+ncp.split("-")[1]+"]");
 			Date date = DateUtils.addDays(new Date(), -params.getPeriodeVerifNewNcpCBS());
-		//	ResultSet rs = executeFilterSystemQuery(dsCBS, "select ncp, dou from bkcom where ncp = ? and dou >= ? ", new Object[]{ncp.split("-")[1], date});hgh
-			
-			if(dsAIF == null) findAIFDataSystem();
-			
-			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
-				
-				String numCompte = ncp.split("-")[1];
-				
-				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/account/getlistecompte/"+numCompte.substring(0, 7));
-			    getRequest.setHeader("content-type", "application/json");
-			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
-			    HttpEntity entity = null;
-			    entity = response.getEntity();
-			 
-			    if(entity != null) {
-			    	 
-			    	 List<Account> listComptes = new ArrayList<>();
-			    	 String content = EntityUtils.toString(entity);
-					 JSONObject json = new JSONObject(content);
-					
-					 ResponseDataAccount responseDataAcc = Shared.mapToResponseDataAccount(json);
-					 String responseCode = responseDataAcc.getCode();
-					
-					 
-					 if ("200".equals(responseCode)) {
-						 
-						 listComptes = responseDataAcc.getDatas();
-						 for(Account account : listComptes) {
-							 
-							 if (numCompte.equalsIgnoreCase(account.getNcp()) && (account.getDou().getTime() > date.getTime())) {
-								 activity = true;
-							 }
-						 }	 
-					 } 
-			     }
+			ResultSet rs = executeFilterSystemQuery(dsCBS, "select ncp, dou from bkcom where ncp = ? and dou >= ? ", new Object[]{ncp.split("-")[1], date});
+			if(rs != null && rs.next()) {
+				logger.info("NEW ACCOUNT OK!!! ");
+				activity = true;
 			}
+			else  logger.info("NEW ACCOUNT KO!!! ");
+			
+			if(rs != null) {
+				rs.close(); 
+				if(rs.getStatement() != null) {
+					rs.getStatement().close();
+				}
+			}
+			// CBS_CNX_OPTI
+			if(conCBS != null ) conCBS.close();
 			
 		} catch(Exception e){}
 		
@@ -12273,5 +12120,5 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		
 		return ltrx;
 	}
-	
+
 }
