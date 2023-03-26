@@ -29,6 +29,7 @@ import org.codehaus.jettison.json.JSONObject;
 import org.jboss.util.NotImplementedException;
 
 import com.afb.dpd.mobilemoney.dao.api.exception.DAOAPIException;
+import com.afb.dpd.mobilemoney.jpa.dto.PackageReponse;
 import com.afb.dpd.mobilemoney.jpa.tools.bkeve;
 import com.afb.dpd.mobilemoney.jpa.tools.bkmvti;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -62,7 +63,8 @@ public abstract class AbstractDAOAPI<T> {
 		throw new NotImplementedException();
 	}
 	
-	public String get(Map<String , String> filtre,String host, String protocole, String port, String url, boolean secure) throws ClientProtocolException, IOException, JSONException, URISyntaxException, DAOAPIException{
+	public String get(Map<String , String> filtre,String host, String protocole, String port, String url, boolean secure) 
+			throws ClientProtocolException, IOException, JSONException, URISyntaxException, DAOAPIException{
 		URIBuilder builder = new URIBuilder(url);
 
 		if(secure) {
@@ -97,8 +99,11 @@ public abstract class AbstractDAOAPI<T> {
 				//retSrc = new JSONArray().toString();
 				JSONObject jsonObject = new JSONObject(retSrc);
 				
+				PackageReponse res = mapToPackageReponse(jsonObject);
 				//System.out.println("resultString: "+retSrc);
-				results = jsonObject.getString("response");
+				results = res.getResponse();
+				//results = jsonObject.getString("response");
+				//System.out.println("resultString-results: "+results);
 		}
 		
 		return results;
@@ -524,39 +529,6 @@ public abstract class AbstractDAOAPI<T> {
 	                	solde = 0d;
 	                }
 	               
-	               // System.out.println("Solde: "+solde);
-	                
-	                
-//	                retSrc = retSrc.replaceAll("\\s", "");
-//	                
-//	                String bkcom[] = StringUtils.split(retSrc, ",");
-//	                for(String s : bkcom) {
-//	                	if(StringUtils.contains(s, "sin:")) {
-//	                		//System.out.println("STR: "+s);
-//	                		solde = Double.valueOf(StringUtils.substringAfterLast(s.trim(), ":"));
-//	                		System.out.println("Solde: "+solde);
-//	                		break;
-//	                	}
-//	                }
-	    
-	              //retSrc = retSrc.replaceAll(":,", ":\"\",");
-	          //    retSrc = retSrc.replaceAll(":-", "&");
-//	                retSrc = retSrc.replaceAll("-", "");
-	     
-	                
-	              //NumberUtils.createDouble(StringUtils.substringAfterLast(bkcom[49].trim(), ":"));
-	              //  solde = Double.valueOf(StringUtils.substringAfterLast(bkcom[49].trim(), ":"));
-	      
-	                
-//	                if(retSrc.startsWith("&")) retSrc.replace("&", "-");
-////	            JSONObject jsonObj = new JSONObject(retSrc.toString());
-//	                ObjectMapper mapper = new ObjectMapper();
-//	                mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-//	                String str = mapper.readValue(retSrc, String.class);
-//	                System.out.println("STR: "+str);
-
-////	            solde = jsonObj.getDouble("sin");
-	           
     			}
         	}
         	catch(Exception e) {
@@ -626,6 +598,11 @@ public abstract class AbstractDAOAPI<T> {
 	
 	public bkeve mapToBkeve(JSONObject obj) throws JsonParseException, JsonMappingException, IOException, JSONException {
 		bkeve o = this.mapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY).readValue(obj.toString(), bkeve.class);
+		return o;
+	}
+	
+	public PackageReponse mapToPackageReponse(JSONObject obj) throws JsonParseException, JsonMappingException, IOException, JSONException {
+		PackageReponse o = this.mapper.enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY).readValue(obj.toString(), PackageReponse.class);
 		return o;
 	}
 	

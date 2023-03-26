@@ -741,7 +741,7 @@ public interface IMobileMoneyManagerRemote {
 	 * @return URL de la signature
 	 * @throws Exception
 	 */
-	public String getLienSig(String age, String ncp, String suf, String cli, Date datec, String heurec, String utic) throws Exception;
+	public String getLienSig(String ncp, String utic) throws Exception;
 	
 	/**
 	 * Recuperer tous les abonnes non factures

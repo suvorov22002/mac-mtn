@@ -182,8 +182,8 @@ public class MobileMoneyContextLoaderListener implements ServletContextListener 
 			logger.info("Fin de l'auto-scan avec succes!!!");
 			
 			TransactionWorker.initChecking();
-			ResiliationWorker.initChecking();
-			AbonnementWorker.initChecking();
+//			ResiliationWorker.initChecking();
+//			AbonnementWorker.initChecking();
 //			SimulationWorker.initChecking();
 //			SimulationWorker.initChecking2();
 

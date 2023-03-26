@@ -250,15 +250,7 @@ public class FrmTFJO extends AbstractPortalForm {
 	public void executerRegulTFJO(){
 
 		try {
-//			logger.info("CHECK REGULS");
-//			List<Transaction> values = MobileMoneyViewHelper.appDAOLocal.filter(Transaction.class, null, RestrictionsContainer.getInstance().add(Restrictions.eq("typeOperation",TypeOperation.COMPTABILISATION)).add(Restrictions.eq("status", TransactionStatus.REGUL)).add(Restrictions.or(Restrictions.isNull("dateControle"), Restrictions.lt("dateControle", new Date()))), OrderContainer.getInstance().add(Order.desc("dateCompta")), null, 0, 1);
-//			// Msg d'information
-//			if(values.isEmpty()) {
-//				logger.info("NOK");
-//				PortalInformationHelper.showInformationDialog("Toutes les comptabilisations en REGUL ont été traitées ce jour, veuillez réessayer demain!", InformationDialog.DIALOG_INFORMATION);
-//				return;
-//			}
-//			logger.info("CHECK OK : CHARGEMENT");
+			
 			// Chargement des operations de Comptabilisation des REGUL
 			fact = MobileMoneyViewHelper.appManager.chargerDonneesComptabiliserRegul();
 			logger.info("OK");
@@ -270,11 +262,7 @@ public class FrmTFJO extends AbstractPortalForm {
 			nbPages = (fact.size()/nbParPage) + 1;
 			chargerDonnees();
 			somme(fact);
-			
-			// Rapprochement des EC de facturation ???
-			
-			// Extraction des EC
-			//extraireECRappochement();
+	
 		} catch(Exception ex) {
 
 			// Traitement de l'exception
@@ -704,14 +692,6 @@ public class FrmTFJO extends AbstractPortalForm {
 			precedent = false;
 			suivant = false;
 			
-//			logger.info("EXTRACTION EC UNL : "+exportFileName);
-//			// Extraction de toutes les ecritures comptables des transactions
-//			MobileMoneyViewHelper.appManager.extractECCompensationIntoFile(ecritures, MobileMoneyTools.getDownloadDir() + File.separator + exportFileName);
-//			logger.info("EXTRACTION EC UNL OK!");
-			// Generation du fichier
-			//fileIsGenerated = true;
-			
-//			logger.info("ECRITURES FACT: "+ecritures+" || TAILLE: "+ecritures.size());
 			fac = MobileMoneyViewHelper.appManager.visualiserRapportCompensation(ecritures, MobileMoneyViewHelper.getSessionUser().getLogin(), 
 							null,MobileMoneyTools.getDownloadDir() + File.separator + exportFileName);
 			
@@ -741,17 +721,7 @@ public class FrmTFJO extends AbstractPortalForm {
 					logger.info("TRANSFERT OK!");
 					MobileMoneyViewHelper.appManager.majSoldeFact(trx, subs);
 					logger.info("MAJ OK!");
-					
-	//				fileIsGenerated = false;
-					
-					//Suppression File EC
-	//				File fec = new File(MobileMoneyTools.getDownloadDir() + File.separator + exportFileName);
-	//				fec.delete();
-					
-					//Suppression File RAPP
-	//				File frapp = new File(MobileMoneyTools.getDownloadDir() + File.separator + ecFileNameRapp);
-	//				frapp.delete();
-					
+				
 					logger.info("IMPRESSION ");
 					//logger.info("Fin Generation des Rapports de Controle");
 					imprimerRapportECFacturation(fac);

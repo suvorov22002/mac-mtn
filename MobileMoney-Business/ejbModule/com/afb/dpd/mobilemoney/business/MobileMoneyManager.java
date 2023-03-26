@@ -13,7 +13,6 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -44,10 +43,19 @@ import org.apache.commons.lang3.time.DateFormatUtils;
 import org.apache.commons.lang3.time.DateUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.Consts;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 import org.hibernate.FetchMode;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
@@ -58,6 +66,16 @@ import com.afb.dpd.mobilemoney.dao.IMobileMoneyDAOLocal;
 import com.afb.dpd.mobilemoney.dao.IPullPushDAOLocal;
 import com.afb.dpd.mobilemoney.dao.api.exception.DAOAPIException;
 import com.afb.dpd.mobilemoney.dao.api.interfaces.IMobileMoneyDAOAPILocal;
+import com.afb.dpd.mobilemoney.jpa.dto.Account;
+import com.afb.dpd.mobilemoney.jpa.dto.Client;
+import com.afb.dpd.mobilemoney.jpa.dto.OperationDto;
+import com.afb.dpd.mobilemoney.jpa.dto.ResponseBkcom;
+import com.afb.dpd.mobilemoney.jpa.dto.ResponseDataAccount;
+import com.afb.dpd.mobilemoney.jpa.dto.ResponseDataBkcom;
+import com.afb.dpd.mobilemoney.jpa.dto.ResponseDataBkeve;
+import com.afb.dpd.mobilemoney.jpa.dto.ResponseDataClient;
+import com.afb.dpd.mobilemoney.jpa.dto.ResponseDataHis;
+import com.afb.dpd.mobilemoney.jpa.dto.Shared;
 import com.afb.dpd.mobilemoney.jpa.entities.AccountInfos;
 import com.afb.dpd.mobilemoney.jpa.entities.AccountUtils;
 import com.afb.dpd.mobilemoney.jpa.entities.Commissions;
@@ -83,7 +101,10 @@ import com.afb.dpd.mobilemoney.jpa.enums.TransactionStatus;
 import com.afb.dpd.mobilemoney.jpa.enums.TypeOperation;
 import com.afb.dpd.mobilemoney.jpa.enums.TypeValeurFrais;
 import com.afb.dpd.mobilemoney.jpa.exception.MoMoException;
+import com.afb.dpd.mobilemoney.jpa.tools.Bkcom;
+import com.afb.dpd.mobilemoney.jpa.tools.Bkhis;
 import com.afb.dpd.mobilemoney.jpa.tools.ClientProduit;
+import com.afb.dpd.mobilemoney.jpa.tools.DateUtil;
 import com.afb.dpd.mobilemoney.jpa.tools.Doublon;
 import com.afb.dpd.mobilemoney.jpa.tools.Equilibre;
 import com.afb.dpd.mobilemoney.jpa.tools.EquilibreComptes;
@@ -163,6 +184,8 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 	private Connection conCBS = null;
 	private DataSystem dsCBS = null;
+	private DataSystem dsAIF = null;
+	private DataSystem dsCbs = null;
 	private Parameters params = null;
 
 	/**
@@ -184,6 +207,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	private  List<FactMonthDetails> details = new ArrayList<FactMonthDetails>();
 	// FIN ADD
 	public final static String DATE_HOUR_FORMAT_TT="yyMMddHHmmssSSSS";
+	private static final int TIMEOUT = 120;//seconds
 	
 	public Long now(){
 //		String _format = RandomStringUtils.randomNumeric(4);
@@ -429,31 +453,12 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		
 		// Specifier s'il s'agit d'un employe ou non
 		Boolean facturer = isClientEmploye(subscriber.getCustomerId()) ? Boolean.FALSE : Boolean.TRUE;
-		
-		// Specifier s'il s'agit d'un employe ou non, ou s'il a souscrit à un package contenant le produit spécifique
-	//	ClientProduit client = new ClientProduit();
-	//	client.setMatricule(subscriber.getFirstAccount().split("-")[1].substring(0,7));
-	//	client.setProduit("MoMo-06");
-	//	String statut = statusAbon(client);
-	//	System.out.println("STATUT: "+statut);
-	//	statut = statut.replace('"', ' ').trim();
-	//	client.setStatut(StatusAbon.valueOf(StatusAbon.class, String.valueOf(statut)));
-		
-	//	Boolean facturer = isClientEmploye(subscriber.getCustomerId()) ? Boolean.FALSE : client.getStatut().equals(StatusAbon.FACTURE) ? Boolean.FALSE : Boolean.TRUE;
 		 
 		subscriber.setFacturer(facturer);
 		//subscriber.setEmploye(!facturer);
 
 		// Creation de la souscription
 		subscriber = mobileMoneyDAO.save(subscriber);
-		// Log
-		//logger.info("Enregistrement du souscripteur");
-
-		// Log
-		//		logger.info("Envoi du code PIN au client par SMS");
-
-		// Envoi du code PIN Banque par SMS
-		//		sendCodePINBySMS(subscriber);
 
 		return subscriber;
 	}
@@ -552,6 +557,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	@Override
 	@AllowedRole(name = "filterSubscriptions", displayName = "MoMo.FilterSubscriptions")
 	public List<Subscriber> filterSubscriptions(RestrictionsContainer rc, OrderContainer orders) {
+		
 		// TODO Auto-generated method stub
 		return mobileMoneyDAO.filter(Subscriber.class, null, rc, orders, null, 0, -1);
 		//return mobileMoneyDAO.filter(Subscriber.class, AliasesContainer.getInstance().add("user", "user"), rc, orders, null, 0, -1);
@@ -598,13 +604,14 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Log
-		//logger.info("recherche des commissions sur la souscription");
+		logger.info("recherche des commissions sur la souscription: " + params.getCommissions());
 
 		Map<TypeOperation, Commissions> mapComs = ConverterUtil.convertCollectionToMap(params.getCommissions(), "operation");
 		
 		// Lecture de la commission du type operation
 		Commissions coms = mapComs.get(TypeOperation.SUBSCRIPTION);
 		
+		logger.info("commissions: " + coms.getValeur());
 		// Si des commissions ont ete parametres sur l'operation
 		if(coms != null && coms.getValeur() > 0) {
 
@@ -910,7 +917,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		// Recherche du souscripteur possedant le numero de Tel du message 
 		List<Subscriber> subs = mobileMoneyDAO.getEntityManager().createQuery("From Subscriber s left join fetch s.phoneNumbers phones where phones in ('"+ phoneNumber +"') and ( s.status=:status or s.status=:_status )  ").setParameter("status", StatutContrat.ACTIF).setParameter("_status", StatutContrat.ACTIF_CBS).getResultList(); // mobileMoneyDAO.filter(Subscriber.class, AliasesContainer.getInstance().add("phoneNumbers", "phones"), RestrictionsContainer.getInstance().add(Restrictions.in("phones", new Object[]{phoneNumber}  )), null, null, 0, -1);
-
+        //System.out.println("subscriber: " + subs.size());
 		if( subs != null && !subs.isEmpty() ) {
 			return isCompteFerme(subs.get(0).getAccounts().get(0)) ? null : subs.get(0);
 		}
@@ -1247,6 +1254,32 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		}catch(Exception e){}
 	}
 	
+	private void findAIFDataSystem() {
+
+		try {
+
+			// Demarrage du service Facade du portail
+			IFacadeManagerRemote portalFacadeManager = (IFacadeManagerRemote) new InitialContext().lookup( PortalHelper.APPLICATION_EAR.concat("/").concat( IFacadeManagerRemote.SERVICE_NAME ).concat("/remote") );
+
+			// Recuperation de la DS de cnx au CBS
+			dsAIF = (DataSystem) portalFacadeManager.findByProperty(DataSystem.class, "code", "AIF");
+
+		}catch(Exception e){}
+	}
+	
+	private void findCBSServicesDataSystem() {
+
+		try {
+
+			// Demarrage du service Facade du portail
+			IFacadeManagerRemote portalFacadeManager = (IFacadeManagerRemote) new InitialContext().lookup( PortalHelper.APPLICATION_EAR.concat("/").concat( IFacadeManagerRemote.SERVICE_NAME ).concat("/remote") );
+
+			// Recuperation de la DS de cnx au CBS
+			dsCbs = (DataSystem) portalFacadeManager.findByProperty(DataSystem.class, "code", "AFB-SERVICE-CBS");
+
+		}catch(Exception e){}
+	}
+	
 
 	/*
 	 * (non-Javadoc)
@@ -1350,14 +1383,17 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// Initialisation
 		Subscriber subscriber = null;
 		String in = "";
+		List<String> accountTypes = new ArrayList<>();
 
 		// Recherche des parametres generaux
 		// checkGlobalConfig(); //Parameters params = findParameters();
 		params = findParameters();
+		
 
 		// Si les types de cptes autorises ont ete parametres
 		if( params.getAccountTypes() != null && !params.getAccountTypes().isEmpty()) {
-
+			
+			accountTypes = params.getAccountTypes();
 			for(String s : params.getAccountTypes()) in += "'" + s + "'" + ", ";
 
 		}
@@ -1368,53 +1404,92 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		try {
 
 			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
+			//if(dsCBS == null) findCBSDataSystem();
+			if(dsAIF == null) findAIFDataSystem();
+			
+			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+				
+				List<Client> listClient = new ArrayList<>();
+				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/customer/customerdetails/"+customerId);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			   
+			    if(entity != null) {
+			    	String content = EntityUtils.toString(entity);
+					JSONObject json = new JSONObject(content);
+					
+					 //ResponseData responseData = Shared.mapToObject(json);
+					 ResponseDataClient responseData = Shared.mapToResponseDataClient(json);
+					 String responseCode = responseData.getCode();
+					 
+					 if ("200".equals(responseCode)) {
+						 
+						 listClient = responseData.getDatas();
+						 for(Client client : listClient) {
+							 
+							 subscriber = new Subscriber(client.getMatricule(), client.getCustomerName(), client.getAdresse1() + " " + client.getVille());
+							 subscriber.setPid(client.getNumeroPiece());
+							 
+							 if (StringUtils.isNotBlank(client.getNumTelephone1())) {
+								 subscriber.getPhoneNumbers().add(client.getNumTelephone1());
+							 }
+							 if (StringUtils.isNotBlank(client.getNumTelephone2())) {
+								 subscriber.getPhoneNumbers().add(client.getNumTelephone2());
+							 }
+							 
+	    				 }
+						 
+						 getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/account/getlistecompte/"+customerId);
+    				     getRequest.setHeader("content-type", "application/json");
+    				     response = Shared.getClosableHttpClient().execute(getRequest);
+    				     entity = null;
+    				     entity = response.getEntity();
+    				    
+    				     if(entity != null) {
+    				    	 
+    				    	 List<Account> listComptes = new ArrayList<>();
+    				    	 content = EntityUtils.toString(entity);
+							 json = new JSONObject(content);
+							
+							 ResponseDataAccount responseDataAcc = Shared.mapToResponseDataAccount(json);
+							 responseCode = responseDataAcc.getCode();
+							 
+							 if ("200".equals(responseCode)) {
+								 
+								 listComptes = responseDataAcc.getDatas();
+								 
+								 for(Account account : listComptes) {
 
-			// Recherche de la liste des types de comptes dans le CBS
-			//ResultSet rs = executeFilterSystemQuery(dsCBS, "select distinct bkcom.age, bkcom.ncp, bkcom.clc, bkcli.nom, nvl(bkcli.pre, ' ') as pre, bkadcli.adr1, bkadcli.ville from bkcom, bkcli LEFT JOIN bkadcli ON bkcli.cli = bkadcli.cli where bkcom.cli = bkcli.cli and bkadcli.cli = bkcli.cli and bkcom.cfe='N' and bkcom.ife='N' and bkcom.cli='"+ customerId +"'" + (in.isEmpty() ? "" : " and bkcom.cpro in " + in), null);
-			ResultSet rs = executeFilterSystemQuery(dsCBS, "select distinct bkcom.age, bkcom.ncp, bkcom.clc, bkcli.nom, nvl(bkcli.pre, ' ') as pre, bkadcli.adr1, bkadcli.ville from bkcom, bkcli LEFT JOIN bkadcli ON bkcli.cli = bkadcli.cli where bkcom.cli = bkcli.cli and bkcom.cfe='N' and bkcom.ife='N' and bkcom.cli='"+ customerId +"'" + (in.isEmpty() ? "" : " and bkcom.cpro in " + in), null);
-
-			// S'il existe au moins un resultat
-			if(rs != null && rs.next()) {
-
-				// Recuperation du nom et de l'adresse du souscripteur
-				subscriber = new Subscriber(customerId, rs.getString("nom").trim().concat(" ").concat( rs.getString("pre").trim() ), rs.getString("adr1") + " " + rs.getString("ville"));
-
-				// Ajout du premier compte
-				subscriber.getAccounts().add( rs.getString("age").concat("-").concat(rs.getString("ncp")).concat("-").concat(rs.getString("clc")) );
-
-				// Parcours des autres comptes
-				while(rs != null && rs.next()) {
-
-					// Ajout du compte trouve a la liste des comptes du clients
-					if( !subscriber.getAccounts().contains( rs.getString("age").concat("-").concat(rs.getString("ncp")).concat("-").concat(rs.getString("clc")) )) subscriber.getAccounts().add( rs.getString("age").concat("-").concat(rs.getString("ncp")).concat("-").concat(rs.getString("clc")) );
-
-				}
-				// Recherche du Numero de CNI du client
-				rs = executeFilterSystemQuery(dsCBS, "select num from bkpidcli where cli='"+ subscriber.getCustomerId() +"'", null);
-				subscriber.setPid( rs != null && rs.next() ? rs.getString("num") : null );
-
-				// Recherche des Numeros de telephone du Client
-				rs = executeFilterSystemQuery(dsCBS, "SELECT num from bktelcli where cli='"+ subscriber.getCustomerId() +"' order by typ", null);
-				if(rs != null) {
-					while(rs.next()) subscriber.getPhoneNumbers().add(rs.getString("num"));
-					rs.close();
-				}
-
+    								 if(!account.isCfe() && !account.isIfe() && accountTypes.contains(account.getCodeProduit())) {
+    									 
+    									 subscriber.getAccounts().add( account.getAgence().concat("-").concat(account.getNcp()).concat("-").concat(account.getCle()) );
+    									 
+    								 }
+    								 
+    							 }	 
+							 }
+							 else {
+								 return null;
+							 }	 
+    				     } 
+					 }
+					 else {
+						 return subscriber;
+					 } 
+			    }
+			    else {
+			    	return null;
+			    }
+			   
 			}
 
-			// Fermeture des connexions
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
-			} 
-			//params = null;
-			// CBS_CNX_OPTI
-			if(conCBS != null ) conCBS.close();
-
-		} catch(Exception e){e.printStackTrace();}
+			
+		} catch(Exception e){
+			e.printStackTrace();
+			return subscriber;
+	    }
 
 		// Retourne le client trouve
 		return subscriber;
@@ -1603,6 +1678,9 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		/***********************/
 		/*** INITIALISATIONS ***/
 		/***********************/
+		Account custAcc = customerAccount(transaction.getAccount());
+		Client customer = customerInfos(transaction.getSubscriber().getCustomerId());
+		
 		logger.info("IN buildEvenement");
 		// Lecture des parametres generaux
 		// checkGlobalConfig(); //Parameters params = findParameters();
@@ -1619,11 +1697,14 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		if(dsCBS == null) throw new Exception("Impossible de trouver la source de donnees au Core Banking");
 
 		// Initialisations
-		ResultSet rsCpteDAPMTN = null, rsCpteAbonne = null, rsCpteComs = null, rsCpteTVA = null, rsLiaisonAbonne = null; ResultSet rsLiaisonDAPMTN = null; ResultSet rsLiaisonComs = null; ResultSet rsLiaisonTva = null;
+		ResultSet /*rsCpteDAPMTN = null, rsCpteAbonne = null, rsCpteComs = null, rsCpteTVA = null,*/ rsLiaisonAbonne = null;
+		ResultSet rsLiaisonDAPMTN = null; ResultSet rsLiaisonComs = null; ResultSet rsLiaisonTva = null;
+		Bkcom bkCpteDAPMTN = null, bkCpteAbonne, bkCpteComs = null, bkCpteTVA = null, bkLiaisonAbonne, bkLiaisonDAPMTN, bkLiaisonComs, bkLiaisonTva;
+		
 		Map<TypeOperation, Commissions> mapComs = ConverterUtil.convertCollectionToMap(params.getCommissions(), "operation");
 
 		Long numEc = 1l;
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Double tva = 19.25d;
 		Double frais = 0d;
 		Double tauxCom = 0d;
@@ -1646,32 +1727,24 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			ncpDAP = transaction.getTypeOperation().equals(TypeOperation.PULL) ? plg.getNcpDAPPull() : (transaction.getTypeOperation().equals(TypeOperation.PUSH) ? plg.getNcpDAPPush() : null);
 		}		
 		boolean modeNuit = isModeNuit();
+		Long numEve;
 
 		/***************************************************************/
 		/*** LECTURE DU DERNIER NUMERO D'EVENEMENT DU TYPE OPERATION ***/
 		/***************************************************************/
 
 		// Recuperation du dernier numero evenement du type operation
-		ResultSet rs = executeFilterSystemQuery(dsCBS, modeNuit ? MoMoHelper.getDefaultCBSQueries().get(2).getQuery().replaceAll("bkope", "syn_bkope") : MoMoHelper.getDefaultCBSQueries().get(2).getQuery(), new Object[]{ params.getCodeOperation() });
-
+		//ResultSet rs = executeFilterSystemQuery(dsCBS, modeNuit ? MoMoHelper.getDefaultCBSQueries().get(2).getQuery().replaceAll("bkope", "syn_bkope") : MoMoHelper.getDefaultCBSQueries().get(2).getQuery(), new Object[]{ params.getCodeOperation() });
+		// Calcul du numero d'evenement
+		
+		numEve = lastNumEveOpe(params.getCodeOperation());
+		logger.info("Lecture du dernier numero d'evenement genere OK!: " + numEve);
+		if (numEve == null) throw new Exception("Impossible de recuperer le numero d'evenement.");
 		// Log
-		//logger.info("Lecture du dernier numero d'evenement genere OK!");
 
 		// Calcul du numero d'evenement
-		Long numEve = rs != null && rs.next() ? numEve = rs.getLong("num") + 1 : 1l;
-
-		// Log
-		//logger.info("Calcul du prochain numero d'evenement OK!");
-		//logger.info("numero d'evenement "+numEve);
-
-		// Fermeture de cnx
-		if(rs != null) {
-			rs.close(); 
-			if(rs.getStatement() != null) {
-				rs.getStatement().close();
-			}
-		}
 		
+
 		/*********************************************************/
 		/*** CALCUL DES COMMISSIONS ET TAXES DE LA TRANSACTION ***/
 		/*********************************************************/
@@ -1707,17 +1780,20 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			if(params.getNumCompteCommissions() != null && !params.getNumCompteCommissions().isEmpty()) 
 
 				// Recuperation du numero de cpte des commissions
-				rsCpteComs = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteCommissions().split("-")[0], params.getNumCompteCommissions().split("-")[1], params.getNumCompteCommissions().split("-")[2] });
-
-			if(rsCpteComs != null) rsCpteComs.next();
+				//rsCpteComs = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteCommissions().split("-")[0], params.getNumCompteCommissions().split("-")[1], params.getNumCompteCommissions().split("-")[2] });
+			    bkCpteComs = accountInfos(params.getNumCompteCommissions());
+			
+			    
+			//if(rsCpteComs != null) rsCpteComs.next();
 
 			// Si le numero de cpte TVA a ete parametre
 			if(params.getNumCompteTVA() != null && !params.getNumCompteTVA().isEmpty())
 
 				// Recuperation du numero de compte TVA
-				rsCpteTVA = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteTVA().split("-")[0], params.getNumCompteTVA().split("-")[1], params.getNumCompteTVA().split("-")[2] });
-
-			if(rsCpteTVA != null) rsCpteTVA.next();
+				//rsCpteTVA = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteTVA().split("-")[0], params.getNumCompteTVA().split("-")[1], params.getNumCompteTVA().split("-")[2] });
+			    bkCpteTVA = accountInfos(params.getNumCompteCommissions());
+			    
+			//if(rsCpteTVA != null) rsCpteTVA.next();
 		}
 		
 		/************************************************/
@@ -1725,10 +1801,12 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		/************************************************/
 
 		// Recherche du cpte de l'abonne
-		rsCpteAbonne = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(6).getQuery(), new Object[]{ transaction.getAccount().split("-")[0], transaction.getAccount().split("-")[1], transaction.getAccount().split("-")[2] });
+		//rsCpteAbonne = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(6).getQuery(), new Object[]{ transaction.getAccount().split("-")[0], transaction.getAccount().split("-")[1], transaction.getAccount().split("-")[2] });
 
 		// Si on ne trouve le cpte du client on leve une exception
-		if( rsCpteAbonne == null || !rsCpteAbonne.next() ) throw new Exception("Impossible de trouver le compte du client");
+		//if( rsCpteAbonne == null || !rsCpteAbonne.next() ) throw new Exception("Impossible de trouver le compte du client");
+		logger.info("MANAGER - Recherche du client: " + customer);
+		if( customer == null ) throw new Exception("Impossible de trouver le compte du client");
 		
 		/***********************************/
 		/*** CONSTRUCTION DE L'EVENEMENT ***/
@@ -1736,77 +1814,36 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		transaction.setCommissions(round(valeurCom, 0));
 		transaction.setTtc(round(transaction.getAmount() + valeurCom + valeurTax, 0));
-
+		
+		logger.info("MANAGER - Taxe ttc: " + transaction.getTtc());
 		// Annulation de la Generation de l'evenement s'il nya aucun montant a debiter
 		if(transaction.getTtc() == 0d) { 
-			if(rsCpteAbonne != null) {
-				rsCpteAbonne.close();
-				if(rsCpteAbonne.getStatement() != null) {
-					rsCpteAbonne.getStatement().close();
-				}
-			}
-			if(rsCpteComs != null) {
-				rsCpteComs.close();
-				if(rsCpteComs.getStatement() != null) {
-					rsCpteComs.getStatement().close();
-				}
-			}
-			if(rsCpteTVA != null) {
-				rsCpteTVA.close();
-				if(rsCpteTVA.getStatement() != null) {
-					rsCpteTVA.getStatement().close();
-				}
-			}
 			transaction = null;
 			return null;
 		}
+		
+		
 
 		// Initialisation de l'evenement a retourner
 //		bkeve eve = new bkeve(transaction, params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), rsCpteAbonne.getString("dev"), round(transaction.getAmount() + valeurCom, 0), ncpDAP == null ? (rsCpteComs != null && !rsCpteComs.getString("age").equals(rsCpteAbonne.getString("age")) ? natIag : natMag) : (rsCpteAbonne.getString("age").equals(ncpDAP.split("-")[0]) ? natMag : natIag), dco, params.getCodeUtil(), tauxCom, frais, tva, round(transaction.getAmount() + valeurCom + valeurTax, 0));
-		bkeve eve = new bkeve(transaction, params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), rsCpteAbonne.getString("dev"), round(transaction.getAmount() + valeurCom, 0), ncpDAP == null ? (rsCpteComs != null && !rsCpteComs.getString("age").equals(rsCpteAbonne.getString("age")) ? natIag : natMag) : (rsCpteAbonne.getString("age").equals(ncpDAP.split("-")[0]) ? natMag : natIag), dco, params.getCodeUtil(), tauxCom, frais, tva, round(transaction.getAmount() + valeurCom + valeurTax, 0), round(transaction.getAmount() + valeurCom + valeurTax, 0));
+//		bkeve eve = new bkeve(transaction, params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), rsCpteAbonne.getString("dev"), round(transaction.getAmount() + valeurCom, 0), ncpDAP == null ? (rsCpteComs != null && !rsCpteComs.getString("age").equals(rsCpteAbonne.getString("age")) ? natIag : natMag) : (rsCpteAbonne.getString("age").equals(ncpDAP.split("-")[0]) ? natMag : natIag), dco, params.getCodeUtil(), tauxCom, frais, tva, round(transaction.getAmount() + valeurCom + valeurTax, 0), round(transaction.getAmount() + valeurCom + valeurTax, 0));
+		bkeve eve = new bkeve(transaction, params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), custAcc.getCodeDevise(), round(transaction.getAmount() + valeurCom, 0), ncpDAP == null ? (bkCpteComs != null && !bkCpteComs.getAge().equals(custAcc.getAgence()) ? natIag : natMag) : (custAcc.getAgence().equals(ncpDAP.split("-")[0]) ? natMag : natIag), dco, params.getCodeUtil(), tauxCom, frais, tva, round(transaction.getAmount() + valeurCom + valeurTax, 0), round(transaction.getAmount() + valeurCom + valeurTax, 0));
 
 		// Si les TFJ sont en cours, 
 		if(modeNuit && (transaction.getTypeOperation().equals(TypeOperation.PULL) || transaction.getTypeOperation().equals(TypeOperation.PUSH) ) ) {
 
-			// S'il s'agit d'un PULL
-			if(transaction.getTypeOperation().equals(TypeOperation.PULL)){
-
-				// Si le total des Pull effectues par le client depasse le mnt max des Pull on annule tout
-				//if(params.getMaxPullAmount() > 0d && transaction.getTtc() + getTotalAmountPullPendantTFJ(transaction.getPhoneNumber()) > params.getMaxPullAmount()) throw new Exception(ExceptionCode.MobileMoneyExceededAmount.getValue());
-			}
-
 			// on suspend le postage dans Amplitude
 			eve.setSuspendInTFJ(Boolean.TRUE);
 
-			// On augmente la periode de recyclage de l'evenement a J+1 (pour que Delta ne le Supprime pas)
-			//eve.setDech( addDate(eve.getDco(), 1) );
 		}
 
-//		COMMENTE
-// S'il s'agit d'une operation inter-agence
-//		if(eve.getNat().equals(natIag)) {
-//
-//			// Recuperation du compte de liaison de l'agence du client
-//			rsCpteLiaison = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ rsCpteAbonne.getString("age") +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
-//
-//			// Recuperation du compte de liaison d'hippodrome
-//			rsLiaisonHippo = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='00001' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
-//
-//			// Si le compte de liaison existe
-//			if(rsCpteLiaison == null || !rsCpteLiaison.next()) throw new Exception("Impossible de trouver le compte de liaison de l'agence " + rsCpteAbonne.getString("age"));
-//
-//			// Si le compte de liaison d'hippodrome n'existe pas
-//			if(rsLiaisonHippo == null || !rsLiaisonHippo.next()) throw new Exception("Impossible de trouver le compte de liaison de l'agence d'hippodrome " );
-//
-//		}
-		
-		
+
 		// Recuperation des comptes de liaison
 
 		logger.info("IN buildEvenement 2");
 			// Recuperation du compte de liaison de l'agence du client
-			rsLiaisonAbonne = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ rsCpteAbonne.getString("age") +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
-	
+			rsLiaisonAbonne = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ custAcc.getAgence() +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
+			
 			// Recuperation du compte de liaison du DAP MTN (PULL/PUSH)
 			if(StringUtils.isNotBlank(ncpDAP)) rsLiaisonDAPMTN = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ ncpDAP.split("-")[0] +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
 	
@@ -1817,7 +1854,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			rsLiaisonTva = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ params.getNumCompteTVA().split("-")[0] +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
 			
 			// Si le compte de liaison de l'agence du client n'existe pas
-			if(rsLiaisonAbonne == null || !rsLiaisonAbonne.next()) throw new Exception("Impossible de trouver le compte de liaison de l'agence " + rsCpteAbonne.getString("age"));
+			if(rsLiaisonAbonne == null || !rsLiaisonAbonne.next()) throw new Exception("Impossible de trouver le compte de liaison de l'agence " + custAcc.getAgence());
 	
 			// Si le compte de liaison du DAP MTN n'existe pas
 			if(StringUtils.isNotBlank(ncpDAP) && (rsLiaisonDAPMTN == null || !rsLiaisonDAPMTN.next())) throw new Exception("Impossible de trouver le compte de liaison de l'agence du DAP MTN " );
@@ -1836,10 +1873,10 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			if ( valeurCom > 0 ) {
 
 				// Ajout du debiteur
-				eve.setDebiteur(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), rsCpteAbonne.getString("clc"), rsCpteAbonne.getString("cli"), rsCpteAbonne.getString("nom"), rsCpteAbonne.getString("ges"), round(transaction.getAmount() + valeurCom, 0), round(transaction.getAmount() + valeurCom, 0), dvaDebit, rsCpteAbonne.getDouble("sde"));
+				eve.setDebiteur(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getNcp(), custAcc.getSuffixe(), custAcc.getCle(), custAcc.getCodeClient(), customer.getNom(), customer.getCodeGes(), round(transaction.getAmount() + valeurCom, 0), round(transaction.getAmount() + valeurCom, 0), dvaDebit, custAcc.getSde());
 
 				// Ajout du debiteur
-				eve.setCrediteur(rsCpteComs.getString("age"), rsCpteComs.getString("dev"), rsCpteComs.getString("ncp"), rsCpteComs.getString("suf"), rsCpteComs.getString("clc"), rsCpteComs.getString("cli"), rsCpteComs.getString("inti"), "   ", valeurCom, valeurCom, dvaDebit, rsCpteComs.getDouble("sde"));
+				eve.setCrediteur(bkCpteComs.getAge(), bkCpteComs.getDev(), bkCpteComs.getNcp(), bkCpteComs.getSuf(), bkCpteComs.getClc(), bkCpteComs.getCli(), bkCpteComs.getInti(), "   ", valeurCom, valeurCom, dvaDebit, bkCpteComs.getSde());
 
 				// Libelle de l'evenement
 				eve.setLib1(datop + "/" + transaction.getTypeOperation().toString().substring(0, 5) + "/MAC/" + transaction.getPhoneNumber());
@@ -1849,17 +1886,19 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			// S'il s'agit du Pull
 		} else if( transaction.getTypeOperation().equals(TypeOperation.PULL) ) {
 			logger.info("IN buildEvenement 3");
+			
+			bkCpteDAPMTN = accountInfos(ncpDAP);
 			// Recuperation du compte DAP PULL MTN
-			rsCpteDAPMTN = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ ncpDAP.split("-")[0], ncpDAP.split("-")[1], ncpDAP.split("-")[2] });
+			//rsCpteDAPMTN = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ ncpDAP.split("-")[0], ncpDAP.split("-")[1], ncpDAP.split("-")[2] });
 
 			// Ajout du debiteur
-			eve.setDebiteur(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), rsCpteAbonne.getString("clc"), rsCpteAbonne.getString("cli"), rsCpteAbonne.getString("nom"), rsCpteAbonne.getString("ges"), transaction.getAmount(), transaction.getAmount(), dvaDebit, rsCpteAbonne.getDouble("sde"));
+			eve.setDebiteur(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getNcp(), custAcc.getSuffixe(), custAcc.getCle(), custAcc.getCodeClient(), customer.getNom(), customer.getCodeGes(), transaction.getAmount(), transaction.getAmount(), dvaDebit, custAcc.getSde());
 
 			// Ajout du crediteur
-			if(rsCpteDAPMTN.next()) eve.setCrediteur(rsCpteDAPMTN.getString("age"), rsCpteDAPMTN.getString("dev"), rsCpteDAPMTN.getString("ncp"), rsCpteDAPMTN.getString("suf"), rsCpteDAPMTN.getString("clc"), rsCpteDAPMTN.getString("cli"), rsCpteDAPMTN.getString("inti"), rsCpteDAPMTN.getString("utic"), transaction.getAmount(), transaction.getAmount(), dvaDebit, rsCpteDAPMTN.getDouble("sde"));
+			if(bkCpteDAPMTN != null) eve.setCrediteur(bkCpteDAPMTN.getAge(), bkCpteDAPMTN.getDev(), bkCpteDAPMTN.getNcp(), bkCpteDAPMTN.getSuf(), bkCpteDAPMTN.getClc(), bkCpteDAPMTN.getCli(), bkCpteDAPMTN.getInti(), "", transaction.getAmount(), transaction.getAmount(), dvaDebit, bkCpteDAPMTN.getSde());
 
 			// Libelle de l'evenement
-			eve.setLib1( datop + "/PULL/" + transaction.getPhoneNumber() + "/" + rsCpteAbonne.getString("ncp"));
+			eve.setLib1( datop + "/PULL/" + transaction.getPhoneNumber() + "/" + custAcc.getNcp());
 
 			// Fermeture de la cnx
 			//rsCpteMTN.close(); rsCpteMTN.getStatement().close();
@@ -1867,17 +1906,19 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			// S'il s'agit du Push
 		} else if( transaction.getTypeOperation().equals(TypeOperation.PUSH) ) {
 			logger.info("IN buildEvenement 4");
+			
+			bkCpteDAPMTN = accountInfos(ncpDAP);
 			// Recuperation du compte DAP PUSH MTN
-			rsCpteDAPMTN = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ ncpDAP.split("-")[0], ncpDAP.split("-")[1], ncpDAP.split("-")[2] });
+			//rsCpteDAPMTN = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ ncpDAP.split("-")[0], ncpDAP.split("-")[1], ncpDAP.split("-")[2] });
 
 			// Ajout du crediteur
-			eve.setCrediteur(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), rsCpteAbonne.getString("clc"), rsCpteAbonne.getString("cli"), rsCpteAbonne.getString("nom"), rsCpteAbonne.getString("ges"), transaction.getAmount(), transaction.getAmount(), dvaCredit, rsCpteAbonne.getDouble("sde"));
-
+			eve.setCrediteur(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getNcp(), custAcc.getSuffixe(), custAcc.getCle(), custAcc.getCodeClient(), customer.getNom(), customer.getCodeGes(), transaction.getAmount(), transaction.getAmount(), dvaCredit, custAcc.getSde());
+			                 
 			// Ajout du debiteur
-			if(rsCpteDAPMTN.next()) eve.setDebiteur(rsCpteDAPMTN.getString("age"), rsCpteDAPMTN.getString("dev"), rsCpteDAPMTN.getString("ncp"), rsCpteDAPMTN.getString("suf"), rsCpteDAPMTN.getString("clc"), rsCpteDAPMTN.getString("cli"), rsCpteDAPMTN.getString("inti"), rsCpteDAPMTN.getString("utic"), transaction.getAmount(), transaction.getAmount(), dvaCredit, rsCpteDAPMTN.getDouble("sde"));
+			if(bkCpteDAPMTN != null) eve.setDebiteur(bkCpteDAPMTN.getAge(), bkCpteDAPMTN.getDev(), bkCpteDAPMTN.getNcp(), bkCpteDAPMTN.getSuf(), bkCpteDAPMTN.getClc(), bkCpteDAPMTN.getCli(), bkCpteDAPMTN.getInti(), "", transaction.getAmount(), transaction.getAmount(), dvaCredit, bkCpteDAPMTN.getSde());
 
 			// Libelle de l'evenement
-			eve.setLib1(datop + "/PUSH/" + transaction.getPhoneNumber() + "/" + rsCpteAbonne.getString("ncp"));
+			eve.setLib1(datop + "/PUSH/" + transaction.getPhoneNumber() + "/" + custAcc.getNcp());
 
 		}
 		
@@ -1889,7 +1930,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		if(transaction.getTypeOperation().equals(TypeOperation.PULL) ) { // && mapComs.get(TypeOperation.PULL).getModeFacturation().equals(ModeFacturation.TRANSACTION) ) {
 
 			// Debit du client du TTC
-			eve.getEcritures().add( new bkmvti(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("cha"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteAbonne.getString("clc"), dco, null, dvaDebit, round(transaction.getAmount() + valeurCom + valeurTax, 0), "D", "PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), round(transaction.getAmount() + valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			eve.getEcritures().add( new bkmvti(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getChapitre(), custAcc.getNcp(), custAcc.getSuffixe(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), custAcc.getCle(), dco, null, dvaDebit, round(transaction.getAmount() + valeurCom + valeurTax, 0), "D", "PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, custAcc.getAgence(), custAcc.getCodeDevise(), round(transaction.getAmount() + valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 //			COMMENTE
 //			if(!StringUtils.equalsIgnoreCase(rsCpteLiaison.getString("age"), rsLiaisonHippo.getString("age"))){
@@ -1928,21 +1969,22 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				
 			}
 			
+			
 			// Credit du cpte MTN du HT
-			eve.getEcritures().add( new bkmvti(rsCpteDAPMTN.getString("age"), rsCpteDAPMTN.getString("dev"), rsCpteDAPMTN.getString("cha"), rsCpteDAPMTN.getString("ncp"), rsCpteDAPMTN.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteDAPMTN.getString("clc"), dco, null, dvaCredit, transaction.getAmount(), "C", "PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteDAPMTN.getString("age"), rsCpteDAPMTN.getString("dev"), transaction.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			eve.getEcritures().add( new bkmvti(bkCpteDAPMTN.getAge(), bkCpteDAPMTN.getDev(), bkCpteDAPMTN.getCha(), bkCpteDAPMTN.getNcp(), bkCpteDAPMTN.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteDAPMTN.getClc(), dco, null, dvaCredit, transaction.getAmount(), "C", "PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteDAPMTN.getAge(), bkCpteDAPMTN.getDev(), transaction.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 			// Credit du cpte Commissions de valeurCom
-			if(rsCpteComs != null && valeurCom > 0) eve.getEcritures().add( new bkmvti(rsCpteComs.getString("age"), rsCpteComs.getString("dev"), rsCpteComs.getString("cha"), rsCpteComs.getString("ncp"), rsCpteComs.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteComs.getString("clc"), dco, null, dvaCredit, valeurCom, "C", "FRAIS PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteComs.getString("age"), rsCpteComs.getString("dev"), valeurCom, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			if(bkCpteComs != null && valeurCom > 0) eve.getEcritures().add( new bkmvti(bkCpteComs.getAge(), bkCpteComs.getDev(), bkCpteComs.getCha(), bkCpteComs.getNcp(), bkCpteComs.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteComs.getClc(), dco, null, dvaCredit, valeurCom, "C", "FRAIS PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteComs.getAge(), bkCpteComs.getDev(), valeurCom, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 			// Credit du compte TVA de valeurTVA
-			if(rsCpteTVA != null && valeurTax > 0) eve.getEcritures().add( new bkmvti(rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), rsCpteTVA.getString("cha"), rsCpteTVA.getString("ncp"), rsCpteTVA.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteTVA.getString("clc"), dco, null, dvaCredit, valeurTax, "C", "TAX PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), valeurTax, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			if(bkCpteTVA != null && valeurTax > 0) eve.getEcritures().add( new bkmvti(bkCpteTVA.getAge(), bkCpteTVA.getDev(), bkCpteTVA.getCha(), bkCpteTVA.getNcp(), bkCpteTVA.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteTVA.getClc(), dco, null, dvaCredit, valeurTax, "C", "TAX PULL/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteTVA.getAge(), bkCpteTVA.getDev(), valeurTax, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 
 			// Si c'est un PUSH
 		} else if(transaction.getTypeOperation().equals(TypeOperation.PUSH) ) { // && mapComs.get(TypeOperation.PUSH).getModeFacturation().equals(ModeFacturation.TRANSACTION)) {
 
 			// Debit du cpte MTN du montant HT
-			eve.getEcritures().add( new bkmvti(rsCpteDAPMTN.getString("age"), rsCpteDAPMTN.getString("dev"), rsCpteDAPMTN.getString("cha"), rsCpteDAPMTN.getString("ncp"), rsCpteDAPMTN.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteDAPMTN.getString("clc"), dco, null, dvaCredit, transaction.getAmount(), "D", "PUSH/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteDAPMTN.getString("age"), rsCpteDAPMTN.getString("dev"), transaction.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			eve.getEcritures().add( new bkmvti(bkCpteDAPMTN.getAge(), bkCpteDAPMTN.getDev(), bkCpteDAPMTN.getCha(), bkCpteDAPMTN.getNcp(), bkCpteDAPMTN.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteDAPMTN.getClc(), dco, null, dvaCredit, transaction.getAmount(), "D", "PUSH/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteDAPMTN.getAge(), bkCpteDAPMTN.getDev(), transaction.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 			if(!StringUtils.equalsIgnoreCase(rsLiaisonAbonne.getString("age"), rsLiaisonDAPMTN.getString("age"))){
 
@@ -1955,22 +1997,10 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			}
 
 			// Credit du cpte client du HT
-			eve.getEcritures().add( new bkmvti(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("cha"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteAbonne.getString("clc"), dco, null, dvaCredit, transaction.getAmount(), "C", "PUSH/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), transaction.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			eve.getEcritures().add( new bkmvti(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getChapitre(), custAcc.getNcp(), custAcc.getSuffixe(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), custAcc.getCle(), dco, null, dvaCredit, transaction.getAmount(), "C", "PUSH/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, custAcc.getAgence(), custAcc.getCodeDevise(), transaction.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 			// Debit du client de valeurCom + valeurTaxes
-			if(valeurCom + valeurTax > 0) eve.getEcritures().add( new bkmvti(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("cha"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteAbonne.getString("clc"), dco, null, dvaCredit, round(valeurCom + valeurTax, 0), "D", "FRAIS MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), round(valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
-
-//			COMMENTE
-//			if(!StringUtils.equalsIgnoreCase(rsCpteLiaison.getString("age"), rsLiaisonHippo.getString("age"))){
-//
-//				// Credit Liaison Client de valeurCom + valeurTaxes
-//				if(rsCpteLiaison != null && valeurCom + valeurTax > 0) eve.getEcritures().add( new bkmvti(rsCpteLiaison.getString("age"), rsCpteLiaison.getString("dev"), rsCpteLiaison.getString("cha"), rsCpteLiaison.getString("ncp"), rsCpteLiaison.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteLiaison.getString("clc"), dco, null, dvaCredit, round(valeurCom + valeurTax, 0), "C", "PUSH/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteLiaison.getString("age"), rsCpteLiaison.getString("dev"), round(valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
-//
-//				// Debit Liaison Hippodrome de valeurCom + valeurTaxes
-//				if(rsLiaisonHippo != null && valeurCom + valeurTax > 0) eve.getEcritures().add( new bkmvti(rsLiaisonHippo.getString("age"), rsLiaisonHippo.getString("dev"), rsLiaisonHippo.getString("cha"), rsLiaisonHippo.getString("ncp"), rsLiaisonHippo.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsLiaisonHippo.getString("clc"), dco, null, dvaCredit, round(valeurCom + valeurTax, 0), "D", "PUSH/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsLiaisonHippo.getString("age"), rsLiaisonHippo.getString("dev"), round(valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
-//
-//			}
-			
+			if(valeurCom + valeurTax > 0) eve.getEcritures().add( new bkmvti(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getChapitre(), custAcc.getNcp(), custAcc.getSuffixe(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), custAcc.getCle(), dco, null, dvaCredit, round(valeurCom + valeurTax, 0), "D", "FRAIS MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, custAcc.getAgence(), custAcc.getCodeDevise(), round(valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 			
 			// Comptes de debit (client) et credit (commissions) dans des agences differentes
 			if( valeurCom > 0 && !StringUtils.equalsIgnoreCase(rsLiaisonAbonne.getString("age"), rsLiaisonComs.getString("age"))){
@@ -1993,10 +2023,10 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			
 
 			// Credit des commissions de valeurCom
-			if(rsCpteComs != null && valeurCom > 0) eve.getEcritures().add( new bkmvti(rsCpteComs.getString("age"), rsCpteComs.getString("dev"), rsCpteComs.getString("cha"), rsCpteComs.getString("ncp"), rsCpteComs.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteComs.getString("clc"), dco, null, dvaCredit, valeurCom, "C", "COM MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteComs.getString("age"), rsCpteComs.getString("dev"), valeurCom, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			if(bkCpteComs != null && valeurCom > 0) eve.getEcritures().add( new bkmvti(bkCpteComs.getAge(), bkCpteComs.getDev(), bkCpteComs.getCha(), bkCpteComs.getNcp(), bkCpteComs.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteComs.getClc(), dco, null, dvaCredit, valeurCom, "C", "COM MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteComs.getAge(), bkCpteComs.getDev(), valeurCom, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 			// Credit du cpte TVA de valeurTaxes
-			if(rsCpteTVA != null && valeurTax > 0) eve.getEcritures().add( new bkmvti(rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), rsCpteTVA.getString("cha"), rsCpteTVA.getString("ncp"), rsCpteTVA.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteTVA.getString("clc"), dco, null, dvaCredit, valeurTax, "C", "TAX MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), valeurTax, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+			if(bkCpteTVA != null && valeurTax > 0) eve.getEcritures().add( new bkmvti(bkCpteTVA.getAge(), bkCpteTVA.getDev(), bkCpteTVA.getCha(), bkCpteTVA.getNcp(), bkCpteTVA.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteTVA.getClc(), dco, null, dvaCredit, valeurTax, "C", "TAX MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteTVA.getAge(), bkCpteTVA.getDev(), valeurTax, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 			// Si c'est une autre operation
 		} else {
@@ -2004,8 +2034,8 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			// Si les commissions existent
 			if( valeurCom + valeurTax > 0) {
 				// Debit du cpte client du montant valeurCom + valeurTVA
-				eve.getEcritures().add( new bkmvti(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("cha"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteAbonne.getString("clc"), dco, null, rsCpteAbonne.getDate("dva"), round(valeurCom + valeurTax, 0), "D", "FRAIS MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), round(valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
-
+				eve.getEcritures().add( new bkmvti(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getChapitre(), custAcc.getNcp(), custAcc.getSuffixe(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), custAcc.getCle(), dco, null, custAcc.getDva(), round(valeurCom + valeurTax, 0), "D", "FRAIS MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, custAcc.getAgence(), custAcc.getCodeDevise(), round(valeurCom + valeurTax, 0), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+				                                   
 				// Comptes de debit (client) et credit (commissions) dans des agences differentes
 				if( valeurCom > 0 && !StringUtils.equalsIgnoreCase(rsLiaisonAbonne.getString("age"), rsLiaisonComs.getString("age"))){
 					
@@ -2026,43 +2056,18 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				}
 	
 				// Credit cpte Comissions de valeurCom
-				if(rsCpteComs != null && valeurCom > 0) eve.getEcritures().add( new bkmvti(rsCpteComs.getString("age"), rsCpteComs.getString("dev"), rsCpteComs.getString("cha"), rsCpteComs.getString("ncp"), rsCpteComs.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteComs.getString("clc"), dco, null, rsCpteComs.getDate("dva"), valeurCom, "C", "COM MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteComs.getString("age"), rsCpteComs.getString("dev"), valeurCom, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
-	
+				if(bkCpteComs != null && valeurCom > 0) eve.getEcritures().add( new bkmvti(bkCpteComs.getAge(), bkCpteComs.getDev(), bkCpteComs.getCha(), bkCpteComs.getNcp(), bkCpteComs.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteComs.getClc(), dco, null, null, valeurCom, "C", "COM MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteComs.getAge(), bkCpteComs.getDev(), valeurCom, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+				
 				// Credit cpte TVA de valeurTVA
-				if(rsCpteTVA != null && valeurTax > 0) eve.getEcritures().add( new bkmvti(rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), rsCpteTVA.getString("cha"), rsCpteTVA.getString("ncp"), rsCpteTVA.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteTVA.getString("clc"), dco, null, rsCpteTVA.getDate("dva"), valeurTax, "C", "TAX MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), valeurTax, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+				if(bkCpteTVA != null && valeurTax > 0) eve.getEcritures().add( new bkmvti(bkCpteTVA.getAge(), bkCpteTVA.getDev(), bkCpteTVA.getCha(), bkCpteTVA.getNcp(), bkCpteTVA.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteTVA.getClc(), dco, null, null, valeurTax, "C", "TAX MAC/" + datopec + "/" + transaction.getPhoneNumber().substring(3), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteTVA.getAge(), bkCpteTVA.getDev(), valeurTax, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 			}
 		}
 		logger.info("IN buildEvenement end");
 		// On libere les variables
 		if(StringUtils.isNotBlank(ncpDAP)) ncpDAP = null;
-		if(rsCpteAbonne != null) {
-			rsCpteAbonne.close();
-			if(rsCpteAbonne.getStatement() != null) {
-				rsCpteAbonne.getStatement().close();
-			}
-			rsCpteAbonne = null;
-		}
-		if(rsCpteDAPMTN != null) {
-			rsCpteDAPMTN.close();
-			if(rsCpteDAPMTN.getStatement() != null) {
-				rsCpteDAPMTN.getStatement().close();
-			}
-			rsCpteDAPMTN = null;
-		}
-		if(rsCpteComs != null) {
-			rsCpteComs.close();
-			if(rsCpteComs.getStatement() != null) {
-				rsCpteComs.getStatement().close();
-			}
-			rsCpteComs = null;
-		}
-		if(rsCpteTVA != null) {
-			rsCpteTVA.close();
-			if(rsCpteTVA.getStatement() != null) {
-				rsCpteTVA.getStatement().close();
-			}
-			rsCpteTVA = null;
-		}
+		
+		
+		
 		if(rsLiaisonAbonne != null) {
 			rsLiaisonAbonne.close();
 			if(rsLiaisonAbonne.getStatement() != null) {
@@ -2091,14 +2096,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			}
 			rsLiaisonDAPMTN = null;
 		}
-		logger.info("IN buildEvenement end+");
-		if(rs != null) {
-			rs.close(); 
-			if(rs.getStatement() != null) {
-				rs.getStatement().close();
-			}
-			rs = null;
-		}
+		
 		logger.info("IN buildEvenement end++");
 		mapComs.clear();
 		// CBS_CNX_OPTI
@@ -2222,92 +2220,66 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	}
 
 	private Double getSolde(String numCompte, boolean nuit) throws Exception {
-		params = findParameters();
-		if(params.getCbsServices()) {
-			return getSoldeInCoreBanking(numCompte);
+		
+		Double solde = null;
+	
+		try {
+			//"select * from bkcom where age = ? and ncp = ? and clc = ? and cfe='N' and ife='N'"
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				System.out.println("SOLDE: " + dsCbs.getDbConnectionString()+"/transactions/process/findbalance/"+numCompte.split("-")[0]+"/"+numCompte.split("-")[1]);
+				HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/transactions/process/findbalance/"+numCompte.split("-")[0]+"/"+numCompte.split("-")[1]);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 if(entity != null) {
+			    		 
+			    		 Bkcom listCompte = new Bkcom();
+			    		 String content = EntityUtils.toString(entity);
+						 JSONObject json = new JSONObject(content);
+						 
+						 ResponseBkcom responseCpte = Shared.mapToResponseBkcom(json);
+						 String responseCode = responseCpte.getCode();
+						
+						 
+						 if ("200".equals(responseCode)) {
+							 listCompte = responseCpte.getData();
+							 solde = listCompte.getSin();
+							 System.out.println("SOLDE IND = " + solde);
+						 }
+			    		 
+			    	 }
+			    	
+			    } 
+			}
 		}
-		else {
-			// Initialisation de la valeur du solde a retourne
-			Double solde = 0d;
-	
-			if(numCompte == null || numCompte.isEmpty()) return solde;
-	
-			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
-	
-			// Requete de recuperation du solde indicatif du compte
-			String req = "select a.sin-nvl(a.minds,0)+nvl(maut,0) as solde " +
-					"from "+ (nuit ? "syn_" : "") +"bkcom a left join bkautc b on a.age=b.age and a.dev=b.dev and a.ncp=b.ncp " +
-					"and eta in ('VA','VF','FO') and today between b.debut and b.fin " +
-					"where a.cfe='N' and a.ife='N' and a.age='"+ numCompte.split("-")[0] +"' and a.clc='"+ numCompte.split("-")[2] +"' and a.ncp='"+ numCompte.split("-")[1] +"'";
-	
-			// Requete de recuperation du cumul des transactions effectuees pendant le mode nuit
-			String req2 = "select nvl(sum(mon),0) as sin from bksin where age='"+ numCompte.split("-")[0] +"' and ncp='"+ numCompte.split("-")[1] +"'";
-	
-			// Execution de la requete de selection du solde indicatif du compte 
-			ResultSet rs = executeFilterSystemQuery(dsCBS, req, null); //  nuit ? "select sin + (select nvl(sum(mon),0) as sin from bksin where age='"+ numCompte.split("-")[0] +"' and ncp='"+ numCompte.split("-")[1] +"') as sin from syn_bkcom where age='"+ numCompte.split("-")[0] +"' and ncp='"+ numCompte.split("-")[1] +"' and clc='"+ numCompte.split("-")[2] +"'  " : "select sin from bkcom where age = '"+ numCompte.split("-")[0] +"' and ncp = '"+ numCompte.split("-")[1] +"' and clc = '"+ numCompte.split("-")[2] +"' ", null) ;
-	
-			// Recuperation du solde du compte
-			if(rs != null && rs.next()) solde = rs.getDouble("solde");
-	
-			// Si on est en mode nuit
-			if(nuit){
-				// MAJ du solde recupere
-				rs = executeFilterSystemQuery(dsCBS, req2, null); // MoMoHelper.getDefaultCBSQueries().get(11).getQuery(), new Object[]{ numCompte.split("-")[1], new Date() });
-				if(rs != null && rs.next()) solde += rs.getDouble("sin");
-			}
-			// Si le decouvert existe (on ajoute le montant de l'autorisation au solde du client)
-			//if(rs != null && rs.next()) solde += rs.getDouble("maut");
-	
-			// Fermeture de la cnx
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
-			}
-			// CBS_CNX_OPTI
-			if(conCBS != null ) conCBS.close();
-			
-			// Retourne le solde du cpte
+		catch(Exception e) {
 			return solde;
 		}
-
+		
+		return solde;
 	}
 
 
-	private List<AccountUtils> getMapSoldes(String sql) throws Exception {
+	private List<AccountUtils> getMapSoldes(List<String> sql) throws Exception {
 
 		// Initialisation de la valeur a retourne
 		List<AccountUtils> lau = new ArrayList<AccountUtils>();
-
-		// Initialisation de DataStore d'Amplitude
-		if(dsCBS == null) findCBSDataSystem();
-
-		// Requete de recuperation du solde indicatif du compte
-		String req = "select age,ncp,clc,cfe,ife,sin from bkcom where dev='001' and ("+sql+");";
-
-		// Execution de la requete de selection du solde indicatif du compte 
-		ResultSet rs = executeFilterSystemQuery(dsCBS, req, null); //  nuit ? "select sin + (select nvl(sum(mon),0) as sin from bksin where age='"+ numCompte.split("-")[0] +"' and ncp='"+ numCompte.split("-")[1] +"') as sin from syn_bkcom where age='"+ numCompte.split("-")[0] +"' and ncp='"+ numCompte.split("-")[1] +"' and clc='"+ numCompte.split("-")[2] +"'  " : "select sin from bkcom where age = '"+ numCompte.split("-")[0] +"' and ncp = '"+ numCompte.split("-")[1] +"' and clc = '"+ numCompte.split("-")[2] +"' ", null) ;
-
-		// Recuperation du solde du compte
-		if(rs != null){
-			while(rs.next()){
-				lau.add(new AccountUtils(rs.getString("age"), rs.getString("ncp"), rs.getString("clc"), rs.getString("ife"), rs.getString("cfe"), rs.getDouble("sin")));
+		
+		Bkcom bkcom;
+		for(String compte : sql) {
+			
+			bkcom = accountInfos(compte);
+			if (bkcom != null) {
+				lau.add(new AccountUtils(bkcom.getAge(), bkcom.getNcp(), bkcom.getClc(), bkcom.getIfe(), bkcom.getCfe(), bkcom.getSin()));
 			}
+			
 		}
-
-		// Fermeture de la cnx
-		if(rs != null) {
-			rs.close(); 
-			if(rs.getStatement() != null) {
-				rs.getStatement().close();
-			}
-		}
-		// CBS_CNX_OPTI
-		if(conCBS != null ) conCBS.close();
-		//for(AccountUtils l : lau) logger.info(l);
-
+		
 		// Retourne le solde du cpte
 		return lau;
 
@@ -2380,42 +2352,253 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	
 	public boolean isSoldeSuffisant(String numCompte, Double montant) throws Exception {
 
-		return getSolde(numCompte) >= montant;
+		return getSolde(numCompte, false) >= montant;
 	}
 	
 	public boolean _isSoldeSuffisant(String numCompte, Double montant) throws Exception {
-		return getSolde(numCompte) >= montant;
+		return getSolde(numCompte, false) >= montant;
 	}
 
 	
 	public boolean isCompteFerme(String numCompte) {
 
-		boolean res = false;
-
+		boolean res = true;
+		
 		try {
-
 			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
-
-			ResultSet rs = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ numCompte.split("-")[0], numCompte.split("-")[1], numCompte.split("-")[2] });
-
-			if(rs == null || !rs.next()) res = true;
-
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
+			if(dsAIF == null) findAIFDataSystem();
+			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+				String ncp = numCompte.split("-")[1];
+				//System.out.println("NCP: " + ncp);
+				System.out.println("getDbConnectionString: " + dsAIF.getDbConnectionString()+"/account/getlistecompte/"+ncp.substring(0, 7));
+				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/account/getlistecompte/"+ncp.substring(0, 7));
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	 
+			    	 List<Account> listComptes = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataAccount responseDataAcc = Shared.mapToResponseDataAccount(json);
+					 String responseCode = responseDataAcc.getCode();
+					 //System.out.println("responseCode: " + responseCode);
+					 if ("200".equals(responseCode)) {
+						 
+						 listComptes = responseDataAcc.getDatas();
+						 //System.out.println("responseCode listComptes: " + listComptes.size());
+						 for(Account account : listComptes) {
+							
+							 System.out.println("responseCode Account: " + ncp+" = "+account.getNcp() + " --- " + (!account.isCfe() && !account.isIfe()));
+							 if (ncp.equalsIgnoreCase(account.getNcp()) && !account.isCfe() && !account.isIfe() ) {
+									 res = false;
+									 break;
+							 }
+							 
+						 }	 
+					 } 
+			     }
 			}
-			// CBS_CNX_OPTI
-			if(conCBS != null ) conCBS.close();
-			
+
 		} catch(Exception e){}
 
 		return res;
-
 	}
 	
+	public Long lastNumEveOpe(String ope) {
+		
+		Long numEve = null;
+		
+		try {
+			
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				System.out.println("NUMEVE: " + dsCbs.getDbConnectionString()+"/transactions/process/lastnumeroeveope/" + ope);
+				HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/transactions/process/lastnumeroeveope/" + ope);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 if(entity != null) {
+			    		 
+			    		 String content = EntityUtils.toString(entity);
+						 JSONObject json = new JSONObject(content);
+						 //System.out.println("JSONObject: " + json);
+						 String responseCode = json.getString("code");
+						 //System.out.println("responseCode: " + responseCode);
+						 if ("200".equalsIgnoreCase(responseCode)) {
+							 String lienSig = json.getString("data");
+							 numEve = lienSig != null && !StringUtils.isBlank(lienSig) ? Long.valueOf(lienSig) + 1 : 1l;
+							 //System.out.println("numEve: " + numEve);
+						 }
+			    		 
+			    	 }
+			    	
+			    } 
+			}
+		}
+		catch(Exception e) {
+			return null;
+		}
+		
+		return numEve;
+	}
+	
+   public Bkcom accountInfos(String compte) {
+		
+	   Bkcom bkcom = null;
+		
+		try {
+			//"select * from bkcom where age = ? and ncp = ? and clc = ? and cfe='N' and ife='N'"
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				
+				HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/kyc/process/getaccountinfo/"+compte.split("-")[0]+"/"+compte.split("-")[1]);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 if(entity != null) {
+			    		 
+			    		 List<Bkcom> listCompte = new ArrayList<>();
+			    		 String content = EntityUtils.toString(entity);
+						 JSONObject json = new JSONObject(content);
+						 
+						 ResponseDataBkcom responseDataCpte = Shared.mapToResponseDataBkcom(json);
+						 String responseCode = responseDataCpte.getCode();
+						
+						 
+						 if ("200".equals(responseCode)) {
+							 listCompte = responseDataCpte.getData();
+							 if(!listCompte.isEmpty()) {
+								 bkcom = listCompte.get(0);
+								 if("N".equals(bkcom.getIfe()) && "N".equals(bkcom.getCfe())) {
+									 return bkcom;
+								 }
+							 }
+						 }
+			    		 
+			    	 }
+			    	
+			    } 
+			}
+		}
+		catch(Exception e) {
+			return null;
+		}
+		
+		return bkcom;
+	}
+   
+    private Account customerAccount(String numCompte) {
+    	Account acc = null;
+    	
+    	try {
+			// Initialisation de DataStore d'Amplitude
+			if(dsAIF == null) findAIFDataSystem();
+			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+				
+				String age = numCompte.split("-")[0];
+				String ncp = numCompte.split("-")[1];
+				String cle = numCompte.split("-")[2];
+				
+				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/account/getlistecompte/"+ncp.substring(0, 7));
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	 
+			    	 List<Account> listComptes = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataAccount responseDataAcc = Shared.mapToResponseDataAccount(json);
+					 String responseCode = responseDataAcc.getCode();
+					 
+					 if ("200".equals(responseCode)) {
+						 
+						 listComptes = responseDataAcc.getDatas();
+						 
+						 for(Account account : listComptes) {
+							 
+							 if (age.equalsIgnoreCase(account.getAgence()) && ncp.equalsIgnoreCase(account.getNcp()) 
+									 && cle.equalsIgnoreCase(account.getCle()) ) {
+								 
+								 acc = account;
+								 break;
+							 
+							 }
+							 
+						 }	 
+					 } 
+			     }
+			}
+
+		} catch(Exception e){
+			return null;
+		}
+    	
+    	return acc;
+    }
+    
+    private Client customerInfos(String custId) {
+    	
+    	Client cust = null;
+    	
+    	try {
+
+			// Initialisation de DataStore d'Amplitude
+			//if(dsCBS == null) findCBSDataSystem();
+			//ResultSet rs = executeFilterSystemQuery(dsCBS, "select pro from bkprocli where cli='"+ numClient +"' order by dpro desc", null);
+			
+			if(dsAIF == null) findAIFDataSystem();
+			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+				
+				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/customer/customerdetails/"+custId);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			 
+			    if(entity != null) {
+			    	 
+			    	 List<Client> listClient = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataClient responseDataClt = Shared.mapToResponseDataClient(json);
+					 String responseCode = responseDataClt.getCode();
+					
+					 
+					 if ("200".equals(responseCode)) {
+						 
+						 listClient = responseDataClt.getDatas();
+						 if(!listClient.isEmpty()) {
+							 cust = listClient.get(0);
+						 }
+					 } 
+			     }
+			}
+
+		} catch(Exception e){
+			return null;
+		}
+    	
+    	return cust;
+    }
+    
+    
 
 	public boolean isClientEmploye(String numClient) {
 
@@ -2424,25 +2607,45 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		try {
 
 			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
-
-			ResultSet rs = executeFilterSystemQuery(dsCBS, "select pro from bkprocli where cli='"+ numClient +"' order by dpro desc", null);
-
-			if(rs != null && rs.next()) res = rs.getString("pro").equals("110");
-
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
-			}
-			// CBS_CNX_OPTI
-			if(conCBS != null ) conCBS.close();
+			//if(dsCBS == null) findCBSDataSystem();
+			//ResultSet rs = executeFilterSystemQuery(dsCBS, "select pro from bkprocli where cli='"+ numClient +"' order by dpro desc", null);
 			
+			if(dsAIF == null) findAIFDataSystem();
+			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+				
+				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/customer/customerdetails/"+numClient);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			 
+			    if(entity != null) {
+			    	 
+			    	 List<Client> listClient = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataClient responseDataClt = Shared.mapToResponseDataClient(json);
+					 String responseCode = responseDataClt.getCode();
+					
+					 
+					 if ("200".equals(responseCode)) {
+						 
+						 listClient = responseDataClt.getDatas();
+						 if(!listClient.isEmpty()) {
+							 Client client = listClient.get(0);
+							 
+							 if("110".equals(client.getCodeProfil())) {
+								 res = true;
+							 }
+						 }
+					 } 
+			     }
+			}
+
 		} catch(Exception e){}
 
 		return res;
-
 	}
 	
 
@@ -2477,48 +2680,50 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	public boolean isCompteEnOpposition(String age, String ncp, String ope){
 		
 		try {
-			
-			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
-
-			ResultSet rs = executeFilterSystemQuery(dsCBS, "select opp from bkoppcom where age=? and ncp=? and eta='V' and (dfin>=today or dfin is null) ", new Object[]{age, ncp});
-
-			List<String> opps = new ArrayList<String>();
-			//res = rs != null && rs.next();
-			// Recuperation du solde du compte
-			if(rs != null){
-				while(rs.next()){
-					logger.info("OPP = "+rs.getString("opp"));
-					opps.add(rs.getString("opp"));
-				}
-				for(String oppp : opps){
-					rs = executeFilterSystemQuery(dsCBS, " select copp from bkopl where (age='00099' or age = ? ) and copp='O' and ope=? and opp= ?  ", new Object[]{age, ope, oppp});
-					logger.info("AFTER RS OK");
-					if(rs != null && rs.next()){
-						logger.info("OK");
-						// CBS_CNX_OPTI
-						if(rs != null) {
-							rs.close(); 
-							if(rs.getStatement() != null) {
-								rs.getStatement().close();
-							}
-						}
-						if(conCBS != null ) conCBS.close();
-						return Boolean.TRUE;
-					}
-				}
-
+			//"select * from bkcom where age = ? and ncp = ? and clc = ? and cfe='N' and ife='N'"
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				
+				HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/transactions/process/oppos-compte/" + age +"/" + ncp);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 if(entity != null) {
+			    		 
+			    		 String content = EntityUtils.toString(entity);
+						 JSONObject json = new JSONObject(content);
+						 
+						 String responseCode = json.getString("code");
+						
+						 
+						 if ("200".equals(responseCode)) {
+							 String jsonData = json.getString("data").replace(" ", "");
+							
+							//Converting jsonData string into JSON object  
+					        //JSONObject jsnobject = new JSONObject(jsonData); 
+					        JSONArray jsonArray = new JSONArray(jsonData);  
+					        if (jsonArray != null) {   
+					            JSONObject opp = new JSONObject();
+					            //Iterating JSON array  
+					            for (int i=0;i<jsonArray.length();i++){   
+					            	opp = (JSONObject) jsonArray.get(i);
+					            	if (opp.getString("opp").equals(ope)) {
+					            		return Boolean.TRUE;
+					            	}
+					            }   
+					        }  
+						 }
+			    	 }
+			    } 
 			}
-			// CBS_CNX_OPTI
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
-			}
-			if(conCBS != null ) conCBS.close();
-			
-		} catch(Exception e){}
+		}
+		catch(Exception e) {
+			e.printStackTrace();
+		}
 		
 		return Boolean.FALSE;
 	}
@@ -2907,14 +3112,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			throw new MoMoException(ExceptionCode.SubscriberInvalidPhone, ExceptionCode.SubscriberInvalidPhone.getValue(), ExceptionCategory.SUBSCRIBER);
 
 		}
-
-		// test du PIN
-		/*if( !subs.getBankPIN().equals( Encrypter.getInstance().encryptText( message.getBankPIN() ) ) ) {
-
-			// Message d'avertissement
-			throw new MoMoException(ExceptionCode.SubscriberInvalidPIN, ExceptionCode.SubscriberInvalidPIN.getValue(), ExceptionCategory.SUBSCRIBER);
-
-		}*/
 
 		// Test du numero de telephone
 		if( subs == null ) throw new MoMoException(ExceptionCode.SubscriberInvalidPhone, ExceptionCode.SubscriberInvalidPhone.getValue(), ExceptionCategory.SUBSCRIBER);
@@ -3330,156 +3527,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			transaction.setStatus(TransactionStatus.SUCCESS);
 		}
 	}else {
-		logger.info("CBS SERVICES NOT ENABLED");
-		if(eve != null) {
-			logger.info("EVE NON NULL");
-			
-		
-			eve.setId(now());
-			
-			boolean evePosted = false;
-			// Calcul de la table des evenements a utiliser
-			//String tableEvt = eve.getSuspendInTFJ().booleanValue() ? " SYN_BKEVE " : " BKEVE ";
-			String tableEvt = eve.getSuspendInTFJ().booleanValue() ? " BKEVE_EOD " : " BKEVE ";
-		
-			// Try catch global
-			try{
-				// requete d'enregistrement de l'evenement dans Amplitude
-				query.add(new Queries(eve.getSaveQuery().replaceAll(" BKEVE ", tableEvt), eve.getQueryValues()));
-				// MAJ du dernier numero d'evenement utilise pour le type operation
-				query.add(new Queries(eve.getSuspendInTFJ().booleanValue() ? MoMoHelper.getDefaultCBSQueries().get(3).getQuery().replaceAll("bkope", "syn_bkope") : MoMoHelper.getDefaultCBSQueries().get(3).getQuery(), new Object[]{ Long.valueOf(eve.getEve()), eve.getOpe() }));
-				
-		/* commenté le 2020-08-27		
-				try{
-	
-					// Enregistrement de l'evenement dans Amplitude
-					executeUpdateSystemQuery(dsCBS, eve.getSaveQuery().replaceAll(" BKEVE ", tableEvt), eve.getQueryValues());
-					
-					logger.info("[MoMo CONTROLE RESERVATION] : SAVE EVE OK");
-				}catch(java.sql.SQLException  ex){
-			
-	
-					logger.info("[MoMo ERROR] : Erreur lors de l'insertion dans la table "+tableEvt+". Le Max eve ne correspond pas dans bkope! On regularise...");
-	
-					executeUpdateSystemQuery(dsCBS, "update "+ (eve.getSuspendInTFJ().booleanValue() ? "syn_" : "") +"bkope set num=(select max(eve) from "+ tableEvt +" where ope='"+ params.getCodeOperation() +"') where ope='"+ params.getCodeOperation() +"' ", null);
-	
-					// Recuperation du dernier numero evenement du type operation
-					ResultSet rs = executeFilterSystemQuery(dsCBS, eve.getSuspendInTFJ().booleanValue() ? MoMoHelper.getDefaultCBSQueries().get(2).getQuery().replaceAll("bkope", "syn_bkope") : MoMoHelper.getDefaultCBSQueries().get(2).getQuery(), new Object[]{ params.getCodeOperation() });
-	
-					// Calcul du numero d'evenement
-					Long numEve = rs != null && rs.next() ? numEve = rs.getLong("num") + 1 : 1l;
-	
-					// Fermeture de cnx
-					rs.close(); rs.getStatement().close();
-	
-					eve.setEve( MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0") );
-					for(bkmvti m : eve.getEcritures()) m.setEve(eve.getEve());
-	
-					// Enregistrement de l'evenement dans Amplitude
-					executeUpdateSystemQuery(dsCBS, eve.getSaveQuery().replaceAll("BKEVE", tableEvt), eve.getQueryValues());
-					logger.info("[MoMo CONTROLE RESERVATION] : SAVE EVE (2) OK");
-//					try{
-//						executeUpdateSystemQuery(dsCBS, eve.getSaveQuery().replaceAll("BKEVE", tableEvt), eve.getQueryValues());
-//					}catch (Exception e){
-//						// MAJ de l'etat des evenements dans le Core Banking (annulation)
-//						executeUpdateSystemQuery(dsCBS, "update "+ tableEvt +" set eta='IG', etap='VA' where eve = "+ eve.getEve() +" and ope= "+eve.getOpe()+" ", null);
-//						e.printStackTrace();
-//					}
-	
-					logger.info("[MoMo ERROR] : Regularisation OK. On poursuit");
-	
-				}
-	
-				// MAJ du dernier numero d'evenement utilise pour le type operation
-				executeUpdateSystemQuery(dsCBS, eve.getSuspendInTFJ().booleanValue() ? MoMoHelper.getDefaultCBSQueries().get(3).getQuery().replaceAll("bkope", "syn_bkope") : MoMoHelper.getDefaultCBSQueries().get(3).getQuery(), new Object[]{ Long.valueOf(eve.getEve()), eve.getOpe() });
-	*/
-				// Si on est dans le mode Nuit
-				if(eve.getSuspendInTFJ().booleanValue()){
-	
-					// MAJ du solde indicatif du Compte Debiteur
-			//		executeUpdateSystemQuery(dsCBS, "insert into bksin (age, dev, ncp, suf, mon, orig, flag) values (?, ?, ?, ?, ?, ?, ?) ", new Object[]{ eve.getAge1(), eve.getDev1(), eve.getNcp1(), eve.getSuf1(), -eve.getMon1(), "WEB", "O" });
-					query.add(new Queries("insert into bksin (age, dev, ncp, suf, mon, orig, flag) values (?, ?, ?, ?, ?, ?, ?) ", new Object[]{ eve.getAge1(), eve.getDev1(), eve.getNcp1(), eve.getSuf1(), -eve.getMon1(), "WEB", "O" }));
-					
-					// MAJ du solde indicatif du compte Crediteur
-			//		executeUpdateSystemQuery(dsCBS, "insert into bksin (age, dev, ncp, suf, mon, orig, flag) values (?, ?, ?, ?, ?, ?, ?) ", new Object[]{ eve.getAge2(), eve.getDev2(), eve.getNcp2(), eve.getSuf2(), eve.getMon2(), "WEB", "O" }); //executeUpdateSystemQuery(dsCBS, "update bksin set mon = mon + ? where age= ? and ncp = ?", new Object[]{ eve.getMon2(), eve.getAge2(), eve.getNcp2() });
-					query.add(new Queries("insert into bksin (age, dev, ncp, suf, mon, orig, flag) values (?, ?, ?, ?, ?, ?, ?) ", new Object[]{ eve.getAge2(), eve.getDev2(), eve.getNcp2(), eve.getSuf2(), eve.getMon2(), "WEB", "O" }));
-					// Si on est dans le mode Jour
-				} else {
-	
-					// MAJ du solde indicatif du compte debiteur
-				//	executeUpdateSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(4).getQuery(), new Object[]{ (transaction.getTypeOperation().equals(TypeOperation.PUSH) ? transaction.getAmount() : eve.getMnt1()) , eve.getAge1(), eve.getNcp1(), eve.getClc1() } );
-					query.add(new Queries(MoMoHelper.getDefaultCBSQueries().get(4).getQuery(), new Object[]{ (transaction.getTypeOperation().equals(TypeOperation.PUSH) ? transaction.getAmount() : eve.getMnt1()) , eve.getAge1(), eve.getNcp1(), eve.getClc1() }));
-					// MAJ du solde indicatif crediteur
-					if(transaction.getTypeOperation().equals(TypeOperation.PUSH) || transaction.getTypeOperation().equals(TypeOperation.PULL)) 
-					//	executeUpdateSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(5).getQuery(), new Object[]{transaction.getAmount(), eve.getAge2(), eve.getNcp2(), eve.getClc2()  });
-					    query.add(new Queries(MoMoHelper.getDefaultCBSQueries().get(5).getQuery(), new Object[]{transaction.getAmount(), eve.getAge2(), eve.getNcp2(), eve.getClc2()  }));
-				}
-				
-				executeUpdateSystemQuery(dsCBS, query);
-				logger.info("[MoMo CONTROLE RESERVATION] : MAJ SOLDE OK");
-			}catch (Exception e){
-				// MAJ de l'etat des evenements dans le Core Banking (annulation)
-				query = new ArrayList();
-				//annulerEvenement(dsCBS,majEve.replaceAll("BKEVE", tableEvt));
-		//		executeUpdateSystemQuery(dsCBS, "update "+ tableEvt +" set eta='IG', etap='VA' where eve = "+ eve.getEve() +" and ope= "+eve.getOpe()+" ", null);
-				//query.add(new Queries("update "+ tableEvt +" set eta='IG', etap='VA' where eve = "+ eve.getEve() +" and ope= "+eve.getOpe()+" ", null));
-				// Annulation de la maj du solde indicatif
-		//		annulerMAJSoldeIndicatif(eve);
-				//annulerMAJSoldeIndicatif(eve, query);
-				logger.info("[MoMo CONTROLE RESERVATION ERROR] : CANCEL EVE & MAJ SOLDE");
-				e.printStackTrace();
-			}
-
-			// Check Bkeve
-			try{
-				ResultSet rsa = executeFilterSystemQuery(dsCBS, eve.getCheckQuery().replaceAll("BKEVE", tableEvt), eve.getQueryCheckValues());
-				if(rsa.next()){
-					evePosted = true;
-					logger.info("[MoMo CONTROLE RESERVATION] : CHECK EVE OK");
-				}else{
-					logger.info("[MoMo CONTROLE RESERVATION ERROR] : CHECK EVE EXCEPTION");
-					throw new MoMoException(ExceptionCode.BankException, ExceptionCode.BankException.getValue(), ExceptionCategory.METIER);
-				}		
-				// CBS_CNX_OPTI
-				if(rsa != null) {
-					rsa.close(); 
-					if(rsa.getStatement() != null) {
-						rsa.getStatement().close();
-					}
-				}
-			}catch (Exception e){
-				logger.info("[MoMo CONTROLE RESERVATION ERROR] : CHECK EVE EXCEPTION");
-				e.printStackTrace();
-			//	if(evePosted)annulerEvenement(dsCBS,majEve.replaceAll("BKEVE", tableEvt));
-				// MAJ de l'etat des evenements dans le Core Banking (annulation)
-			//	annulerEvenement(dsCBS,majEve.replaceAll("BKEVE", tableEvt));
-				if(evePosted)executeUpdateSystemQuery(dsCBS, "update "+ tableEvt +" set eta='IG', etap='VA' where eve = "+ eve.getEve() +" and ope= "+eve.getOpe()+" ", null);
-				throw new MoMoException(ExceptionCode.BankException, ExceptionCode.BankException.getValue(), ExceptionCategory.METIER);
-			}
-			
-			// MAJ du statut de la transaction
-			eve.getTransaction().setStatus(TransactionStatus.SUCCESS);
-
-			// Sauvegarde l'evenement/ecritures/transaction
-			try{
-				eve = mobileMoneyDAO.save(eve);
-			}catch (Exception e){
-				logger.info("[MoMo CONTROLE RESERVATION ERROR] : SAVE TRX EXCEPTION --> CANCEL EVE & MAJ SOLDE");
-				// MAJ de l'etat des evenements dans le Core Banking (annulation)
-			//	executeUpdateSystemQuery(dsCBS, "update "+ tableEvt +" set eta='IG', etap='VA' where eve = "+ eve.getEve() +" and ope= "+eve.getOpe()+" ", null);
-				// Annulation de la maj du solde indicatif
-				query = new ArrayList();
-				query.add(new Queries("update "+ tableEvt +" set eta='IG', etap='VA' where eve = "+ eve.getEve() +" and ope= "+eve.getOpe()+" ", null));
-			//	annulerMAJSoldeIndicatif(eve);
-				annulerMAJSoldeIndicatif(eve,query);
-				e.printStackTrace();
-			}
-			
-		} else{
-			// Transaction sans evenement (BALANCE/MINISTATEMENT)
-			transaction.setStatus(TransactionStatus.SUCCESS);
-		}
-
+		throw new MoMoException(ExceptionCode.BankException, ExceptionCode.BankException.getValue(), ExceptionCategory.METIER);
 	}
 		return eve != null ? eve.getTransaction() : transaction;
 
@@ -3694,21 +3742,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		// S'il n'ya aucune transaction on sort
 		if(transactions == null || transactions.isEmpty()) return null;
-
-		// Initialisation du filtre
-		//String in = "";
-
-		// Recuperation  de l'id de chaque transaction selectionnee
-		//for(Transaction t : transactions) if(t.isSelected() && t.getStatus().equals(TransactionStatus.SUCCESS) && (poster ? !t.getPosted().booleanValue() : true) ) { in += t.getId() + ", "; }
-
-		// Construction du filtre sur les transactions
-		//if(!in.isEmpty()) in = "(" + in.substring(0, in.length()-2) + ")";
-
-		// Si aucune transaction n'a ete selectionnee on sort
-		//if(in.isEmpty()) return null;
-
-		// Execute et retourne la liste des ecritures comptables des transactions selectionnees
-		//return mobileMoneyDAO.getEntityManager().createQuery("Select e.ecritures from bkeve e where e.transaction.id in "+ in +"").getResultList();
 
 		// Initialisation de la liste des ecritures a retourner
 		List<bkmvti> mvts = new ArrayList<bkmvti>();
@@ -4042,7 +4075,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 //		if(dsCBS == null) findCBSDataSystem();
 //
 //		// Recuperation de la date comptable du jour
-//		Date dco = getDateComptable(dsCBS);
+//		Date dco = getDateComptable();
 //
 //		// Ouverture d'une cnx vers la BD du Core Banking
 //		if(conCBS == null || conCBS.isClosed()) conCBS = getSystemConnection(dsCBS);
@@ -4109,7 +4142,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		if(dsCBS == null) findCBSDataSystem();
 		
 		// Recuperation de la date comptable du jour
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Ouverture d'une cnx vers la BD du Core Banking
 		if(conCBS == null || conCBS.isClosed()) conCBS = getSystemConnection(dsCBS);
@@ -4345,25 +4378,37 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	 * @param dsCBS
 	 * @return date comptable
 	 */
-	public Date getDateComptable(DataSystem dsCBS) throws Exception {
-
-		Date dco = new Date();
-
-		ResultSet rs = executeFilterSystemQuery(dsCBS, "select lib2, mnt1, mnt2 from bknom where ctab=? and cacc=?", new Object[]{"001", "00099"});
-		if(rs != null && rs.next()){
-			String date = rs.getString("lib2").trim().equals("FE") ? rs.getString("mnt1").length() == 7 ? "0".concat(rs.getString("mnt1")) : rs.getString("mnt1") : rs.getString("mnt2").length() == 7 ? "0".concat(rs.getString("mnt2")) : rs.getString("mnt2");
-			dco = new SimpleDateFormat("ddMMyyyy").parse(date);
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
-			}
-		}
-		// CBS_CNX_OPTI
-		if(conCBS != null ) conCBS.close();
+	public Date getDateComptable() throws Exception {
 		
-		return dco;
+		Date d = null;
+		
+		if(dsAIF == null) findAIFDataSystem();
+		
+		if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+			
+			HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/nomenclature/getdatecomptable");
+		    getRequest.setHeader("content-type", "application/json");
+		    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+		    HttpEntity entity = null;
+		    entity = response.getEntity();
+		 
+		    if(entity != null) {
+		    	 
+		    	 String content = EntityUtils.toString(entity);
+				 JSONObject json = new JSONObject(content);
+	
+				 String responseCode = json.getString("code");
+				
+				 if ("200".equals(responseCode)) {
+					 String dat = json.getString("data");
+					 d = DateUtil.parse(dat, DateUtil.DATE_MINUS_FORMAT_SINGLE);
+					 
+					 return d;
+				 } 
+		     }
+		}
+		
+		return d;
 
 	}
 	
@@ -4904,25 +4949,38 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	private boolean isModeNuit() throws Exception {
 
 		boolean res = false;
-
-		// Lecture des Prmtrs de cnx a Amplitude
-		if(dsCBS == null) findCBSDataSystem();
-
-		// Recuperation du l'etat de l'agence centrale
-		ResultSet rs = executeFilterSystemQuery(dsCBS, "select mnt4 from bknom where ctab='098' and cacc='SITE-CENT'", null);
-
-		// Si le champ mnt4 de l'agence centrale est = 1 alors on est en mode nuit
-		res = rs != null && rs.next() ? rs.getInt("mnt4") == 1 : false;
-
-		// Fermeture de la cnx
-		if(rs != null) {
-			rs.close(); 
-			if(rs.getStatement() != null) {
-				rs.getStatement().close();
+		
+		try {
+			
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				
+				HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/kyc/process/modenuit");
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 if(entity != null) {
+			    		 
+			    		 String content = EntityUtils.toString(entity);
+						 JSONObject json = new JSONObject(content);
+						 
+						 String responseCode = json.getString("code");
+						 
+						 if ("200".equals(responseCode)) {
+							 res = true;
+						 }
+			    		 
+			    	 }
+			    } 
 			}
 		}
-		// CBS_CNX_OPTI
-		if(conCBS != null ) conCBS.close();
+		catch(Exception e) {
+			return false;
+		}
 		
 		// Retourne le resultat 
 		return res;
@@ -5033,7 +5091,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// DataStore vers Amplitude
 		if(dsCBS == null) findCBSDataSystem();
 
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Parcours des Evenements trouves
 		for(bkeve eve : eves){
@@ -5078,7 +5136,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		int nb = 0;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5107,7 +5165,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		int nb = 0;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5136,7 +5194,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5165,7 +5223,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5195,7 +5253,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5224,7 +5282,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Double nb = 0d;
 
 		// Execution de la requete de controle de l'equilibre
@@ -5254,7 +5312,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Equilibre> data = new ArrayList<Equilibre>();
@@ -5300,7 +5358,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Equilibre> data = new ArrayList<Equilibre>();
@@ -5334,7 +5392,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		EquilibreComptes data = new EquilibreComptes();
@@ -5380,7 +5438,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		EquilibreComptes data = new EquilibreComptes();
@@ -5426,7 +5484,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		EquilibreComptes data = new EquilibreComptes();
@@ -5473,7 +5531,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5508,7 +5566,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5543,7 +5601,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5578,7 +5636,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5613,7 +5671,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5648,7 +5706,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		Equilibre data = new Equilibre();
@@ -5683,7 +5741,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Doublon> data = new ArrayList<Doublon>();
@@ -5729,7 +5787,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 
 		// Recuperation de la date comptable
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Initialisation de la liste des valeurs a retourner
 		List<Doublon> data = new ArrayList<Doublon>();
@@ -5990,19 +6048,12 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		tva = Math.max( mapComs.get(TypeOperation.PULL).getPeriodFacturation() != null ? mapComs.get(TypeOperation.PULL).getTauxTVA() : 0d, mapComs.get(TypeOperation.PUSH).getPeriodFacturation() != null ? mapComs.get(TypeOperation.PUSH).getTauxTVA() : 0d);
 
 		// Initialisation de la requete de selection des abonnements a comptabiliser (date d'anniversaire)
-		//String req = "From Subscriber s where s.status = :statut and s.facturer = :facturer and s.commissions>0"; //  and (current_date - s.dateDernCompta) >= (case when s.period='MOIS' then 30 else ( case when s.period='TRIMESTRE' then 90 else ( case when s.period='SEMESTRE' then 180 else ( case when s.period='ANNUEL' then 365 else ( case when s.period='SEMAINE' then 7 else 1 end ) end ) end ) end ) end ) ";
 		String req = "From Subscriber s where s.status = :statut and s.facturer = :facturer  and s.commissions > 0  and s.dateDernCompta <=  :dateDernCompta "; // and s.date < :date
 
 		//logger.info("Recup liste des abonnes");
 		// Recuperation de la liste des abonnements a comptabiliser
-		//subs = mobileMoneyDAO.getEntityManager().createQuery(req).setParameter("statut", StatutContrat.ACTIF).setParameter("facturer", Boolean.TRUE).getResultList(); // .setMaxResults(1500)
 		subs = mobileMoneyDAO.getEntityManager().createQuery(req).setParameter("statut", StatutContrat.ACTIF).setParameter("facturer", Boolean.TRUE).setParameter("dateDernCompta", getLastFacturationDate(date)).getResultList();
-	//	subs = mobileMoneyDAO.getEntityManager().createQuery(req).setParameter("statut", StatutContrat.ACTIF).setParameter("_statut", StatutContrat.ACTIF_CBS).setParameter("facturer", Boolean.TRUE).setParameter("dateDernCompta", getLastFacturationDate(date)).getResultList();
-
-		//logger.info("OK");
-		//logger.info("Generation des eve et enregistrement");
-		// Generation des evenements, transactions et ecritures a comptabiliser et enregistrement
-		//mobileMoneyDAO.saveList(buildEventsForComptabilisation(subs, tva, date), true);
+		
 		logger.info("Total Subscriber: "+subs.size());
 		
 		List<bkeve> data = buildEventsForComptabilisation(subs, tva, date);
@@ -6014,59 +6065,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 	}
 
-	/*@Override
-	@SuppressWarnings("unchecked")
-	//@TransactionTimeout(value = 15000)
-	@AllowedRole(name = "executerTFJO", displayName = "MoMo.Executer.TFJO")
-	public List<Comptabilisation> executerTFJO2() throws Exception {
-
-		// Initialisation de la liste a retourner
-		List<Comptabilisation> compta = new ArrayList<Comptabilisation>();
-
-		// Initialisation de la liste des abonnes a comptabiliser
-		List<Subscriber> subs = new ArrayList<Subscriber>();
-
-		// Lecture des parametres generaux
-		// checkGlobalConfig(); //Parameters param = findParameters();
-
-		// Recuperation de la liste des commissions
-		Map<TypeOperation, Commissions> mapComs = ConverterUtil.convertCollectionToMap(params.getCommissions(), "operation");
-
-		// Initialisation de la TVA
-		Double tva = 19.25; 
-
-		// Construction d'une Map de periodicites
-		Map<Periodicite, Integer> mapPeriods = new HashMap<Periodicite, Integer>();
-		mapPeriods.put(Periodicite.MOIS, 30); mapPeriods.put(Periodicite.TRIMESTRE, 90); mapPeriods.put(Periodicite.SEMESTRE, 180); mapPeriods.put(Periodicite.ANNUEL, 365);
-
-		// Recuperation de la tva parametree sur les commissions PULL et PUSH
-		tva = Math.max( mapComs.get(TypeOperation.PULL).getPeriodFacturation() != null ? mapComs.get(TypeOperation.PULL).getTauxTVA() : 0d, mapComs.get(TypeOperation.PUSH).getPeriodFacturation() != null ? mapComs.get(TypeOperation.PUSH).getTauxTVA() : 0d);
-
-		// Initialisation de la requete de selection des abonnements a comptabiliser (date d'anniversaire)
-		String req = "From Subscriber s where s.status = :statut and s.facturer = :facturer and s.commissions>0"; //  and (current_date - s.dateDernCompta) >= (case when s.period='MOIS' then 30 else ( case when s.period='TRIMESTRE' then 90 else ( case when s.period='SEMESTRE' then 180 else ( case when s.period='ANNUEL' then 365 else ( case when s.period='SEMAINE' then 7 else 1 end ) end ) end ) end ) end ) ";
-
-		// Recuperation de la liste des abonnements a comptabiliser
-		subs = mobileMoneyDAO.getEntityManager().createQuery(req).setParameter("statut", StatutContrat.ACTIF).setParameter("facturer", Boolean.TRUE).getResultList(); // .setMaxResults(1500)
-
-		for(int i=subs.size()-1; i>=0; i--){
-			if(isClientEmploye(subs.get(i).getCustomerId()) || subs.get(i).getAccounts() == null || subs.get(i).getAccounts().isEmpty() || MoMoHelper.getNbreJoursBetween(subs.get(i).getDateDernCompta(), new Date()) < getNbJrsByPeriod(subs.get(i).getPeriod()) ) subs.remove(i);
-		}
-
-		// Generation des evenements a comptabiliser
-		mobileMoneyDAO.saveList(buildEventsForComptabilisation(subs, tva), true); 
-
-		// Ajout des evenements a regulariser
-		//compta.addAll( mobileMoneyDAO.filter(Comptabilisation.class, null, RestrictionsContainer.getInstance().add(Restrictions.eq("status", TransactionStatus.REGUL)), OrderContainer.getInstance().add(Order.desc("dateCompta")), null, 0, -1) );
-
-		// Liberation des ressources
-		mapComs.clear(); mapPeriods.clear(); 
-
-		// Retourne la liste des comptabilisations
-		return compta;
-
-	}*/
-
-
+	
 	private List<bkeve> buildEventsForComptabilisation(List<Subscriber> subs, Double tva, Date dateCompta) throws Exception {
 		// Initialisation de la liste a retourner
 		List<bkeve> data = new ArrayList<bkeve>();
@@ -6079,11 +6078,12 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		if(dsCBS == null) findCBSDataSystem();
 
 		// Initialisations des ResultSets
-		ResultSet rsCpteAbonne = null, rsCpteComs = null, rsCpteTVA = null, rsLiaisonAbonne = null, rsLiaisonComs = null, rsLiaisonTva = null;
+		/*ResultSet rsCpteAbonne = null, rsCpteComs = null, rsCpteTVA = null, rsLiaisonAbonne = null, rsLiaisonComs = null, rsLiaisonTva = null*/;
+		Bkcom bkCpteComs = null, bkCpteTVA = null, bkLiaisonAbonne = null, bkLiaisonComs = null, bkLiaisonTva = null;
 
 		// Initialisations
 		Long numEc = 1l;
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Date dvaDebit = getDvaDebit();
 
 		//Long numEve = getLastEveNum(dsCBS);
@@ -6098,29 +6098,33 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		if(params.getNumCompteCommissions() != null && !params.getNumCompteCommissions().isEmpty()) 
 
 			// Recuperation du numero de cpte des commissions
-			rsCpteComs = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteCommissions().split("-")[0], params.getNumCompteCommissions().split("-")[1], params.getNumCompteCommissions().split("-")[2] });
-
-		if(rsCpteComs != null) rsCpteComs.next();
+			//rsCpteComs = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteCommissions().split("-")[0], params.getNumCompteCommissions().split("-")[1], params.getNumCompteCommissions().split("-")[2] });
+			bkCpteComs = accountInfos(params.getNumCompteCommissions());
+		
+		//if(rsCpteComs != null) rsCpteComs.next();
 
 		// Si le numero de cpte TVA a ete parametre
 		if(params.getNumCompteTVA() != null && !params.getNumCompteTVA().isEmpty())
 
 			// Recuperation du numero de compte TVA
-			rsCpteTVA = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteTVA().split("-")[0], params.getNumCompteTVA().split("-")[1], params.getNumCompteTVA().split("-")[2] });
-
-		if(rsCpteTVA != null) rsCpteTVA.next();
-
+			//rsCpteTVA = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(7).getQuery(), new Object[]{ params.getNumCompteTVA().split("-")[0], params.getNumCompteTVA().split("-")[1], params.getNumCompteTVA().split("-")[2] });
+			bkCpteTVA = accountInfos(params.getNumCompteTVA());
+		
 		// Recuperation du compte de liaison l'agence des commissions
-		rsLiaisonComs = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='" +params.getNumCompteCommissions().split("-")[0]+ "' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
-		if(rsLiaisonComs != null) rsLiaisonComs.next();
+		//rsLiaisonComs = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='" +params.getNumCompteCommissions().split("-")[0]+ "' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
+		bkLiaisonComs = accountInfos(params.getNumCompteCommissions().split("-")[0] + "-" + params.getNumCompteLiaison());
+		//if(rsLiaisonComs != null) rsLiaisonComs.next();
 		
 		// Recuperation du compte de liaison de l'agence des taxes
-		rsLiaisonTva = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='" +params.getNumCompteTVA().split("-")[0]+ "' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
-		if(rsLiaisonTva != null) rsLiaisonTva.next();
+		//rsLiaisonTva = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='" +params.getNumCompteTVA().split("-")[0]+ "' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
+		bkLiaisonTva = accountInfos(params.getNumCompteTVA().split("-")[0] + "-" + params.getNumCompteLiaison());
+		//if(rsLiaisonTva != null) rsLiaisonTva.next();
 
 		// Parcours de la liste des abonnes passee en parametre
-//		logger.info("Data SUBS: "+subs.size());
-//		List<Subscriber> _subs = subs.subList(0, 50);
+
+		Account custAcc;
+		Client customer;
+		
 		for(Subscriber s : subs){
 			//logger.info("NCP SUBS: "+s.getFirstAccount());
 			if(s.getFirstAccount()!= null && s.getFirstPhone()!= null){
@@ -6139,24 +6143,27 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				//logger.info("Compte : "+s.getFirstAccount()+" Phone : "+ s.getFirstPhone());
 				// Initialisation de la transaction a comptabiliser
 				Transaction tx = new Transaction(TypeOperation.COMPTABILISATION, s, 0d, s.getFirstAccount(), s.getFirstPhone() , new Date(), TransactionStatus.PROCESSING, com, Math.ceil( com * (1 + tva/100) ), dateCompta );
-
+				
+				custAcc = customerAccount(tx.getAccount());
+				customer = customerInfos(tx.getAccount());
+				
 				// Initialisation de l'evenement a generer MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0")
 				//bkeve eve = new bkeve(tx, params.getCodeOperation(), "000000", "001", tx.getAmount(), "VIRMAC", dco, params.getCodeUtil(), 1d, tx.getCommissions(), tx.getTaxes(), tx.getTtc());
 				bkeve eve = new bkeve(tx, params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), "001", tx.getAmount(), "VIRMAC", dco, params.getCodeUtil(), 1d, tx.getCommissions(), tx.getTaxes(), tx.getTtc());
 				//logger.info("Compte : "+tx.getAccount()+" Phone : "+ tx.getPhoneNumber());
 				// Recherche du cpte de l'abonne
-				rsCpteAbonne = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(6).getQuery(), new Object[]{ tx.getAccount().split("-")[0], tx.getAccount().split("-")[1], tx.getAccount().split("-")[2] });
+				//rsCpteAbonne = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(6).getQuery(), new Object[]{ tx.getAccount().split("-")[0], tx.getAccount().split("-")[1], tx.getAccount().split("-")[2] });
 
 				// Si le cpte de l'abonne existe dans DELTA
-				if(rsCpteAbonne != null && rsCpteAbonne.next()) {
+				if(custAcc != null && customer != null) {
 
-					if(rsCpteAbonne.getString("ife").equals("N") && rsCpteAbonne.getString("cfe").equals("N") && rsCpteAbonne.getString("cha").startsWith("37")){
-
-						// Ajout du debiteur
-						eve.setDebiteur(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), rsCpteAbonne.getString("clc"), rsCpteAbonne.getString("cli"), s.getCustomerName(), " ", tx.getCommissions(), tx.getCommissions(), dvaDebit, rsCpteAbonne.getDouble("sde"));
+					if(!custAcc.isCfe() && custAcc.isCfe() && custAcc.getChapitre().startsWith("37")){
 
 						// Ajout du debiteur
-						eve.setCrediteur(rsCpteComs.getString("age"), rsCpteComs.getString("dev"), rsCpteComs.getString("ncp"), rsCpteComs.getString("suf"), rsCpteComs.getString("clc"), rsCpteComs.getString("cli"), rsCpteComs.getString("inti"), "   ", tx.getCommissions(), tx.getCommissions(), dvaDebit, rsCpteComs.getDouble("sde"));
+						eve.setDebiteur(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getNcp(), custAcc.getSuffixe(), custAcc.getCle(), custAcc.getCodeClient(), s.getCustomerName(), " ", tx.getCommissions(), tx.getCommissions(), dvaDebit, custAcc.getSde());
+
+						// Ajout du debiteur
+						if(bkCpteComs != null) eve.setCrediteur(bkCpteComs.getAge(), bkCpteComs.getDev(), bkCpteComs.getNcp(), bkCpteComs.getSuf(), bkCpteComs.getClc(), bkCpteComs.getCli(), bkCpteComs.getInti(), "   ", tx.getCommissions(), tx.getCommissions(), dvaDebit, bkCpteComs.getSde());
 
 						// Libelle de l'evenement
 						eve.setLib1(datop + "/" + tx.getTypeOperation().toString().substring(0, 5) + "/MAC/" + tx.getPhoneNumber());
@@ -6168,58 +6175,39 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 						 */
 
 						// Debit du cpte client du montant valeurCom + valeurTVA
-						eve.getEcritures().add( new bkmvti(rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), rsCpteAbonne.getString("cha"), rsCpteAbonne.getString("ncp"), rsCpteAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteAbonne.getString("clc"), dco, null, rsCpteAbonne.getDate("dva"), tx.getTtc(), "D", "FRAIS MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()) , "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteAbonne.getString("age"), rsCpteAbonne.getString("dev"), tx.getTtc(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+						eve.getEcritures().add( new bkmvti(custAcc.getAgence(), custAcc.getCodeDevise(), custAcc.getChapitre(), custAcc.getNcp(), custAcc.getSuffixe(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), custAcc.getCle(), dco, null, null, tx.getTtc(), "D", "FRAIS MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()) , "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, custAcc.getAgence(), custAcc.getCodeDevise(), tx.getTtc(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 						// Recuperation du compte de liaison de l'agence du client
-						rsLiaisonAbonne = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ rsCpteAbonne.getString("age") +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
-
+						//rsLiaisonAbonne = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ custAcc.getAgence() +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
+						bkLiaisonAbonne = accountInfos(custAcc.getAgence() + "-" + params.getNumCompteTVA());
 						// Si le compte de liaison existe
-						if(rsLiaisonAbonne != null) rsLiaisonAbonne.next();
+						//if(bkLiaisonAbonne == null) throw new Exception("Comptes de liaison inexistant");
 		
-//						COMMENTE
-//						// Si l'agence du compte n'est pas Hippodrome
-//						if(!rsCpteAbonne.getString("age").equals("00001")){
-//
-//							// Recuperation du compte de liaison de l'agence du client
-//							rsLiaisonAbonne = executeFilterSystemQuery(dsCBS, "select age, dev, cha, ncp, suf, clc, dva, inti, sde, utic from bkcom where age='"+ rsCpteAbonne.getString("age") +"' and dev='001' and ncp='"+ params.getNumCompteLiaison() +"'", null);
-//
-//							// Si le compte de liaison existe
-//							if(rsLiaisonAbonne != null && rsLiaisonAbonne.next() ) {
-//
-//								// Passage de l'ecriture dans les liaisons
-//								eve.getEcritures().add( new bkmvti(rsLiaisonAbonne.getString("age"), rsLiaisonAbonne.getString("dev"), rsLiaisonAbonne.getString("cha"), rsLiaisonAbonne.getString("ncp"), rsLiaisonAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.cpteLiaisonAbonne.getClc(), dco, null, cpteLiaisonAbonne.getDva()ate("dva"), tx.getTtc(), "C", "LS MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsLiaisonAbonne.getString("age"), rsLiaisonAbonne.getString("dev"), tx.getTtc(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
-//								eve.getEcritures().add( new bkmvti(rsLiaisonComs.getString("age"), rsLiaisonComs.getString("dev"), rsLiaisonComs.getString("cha"), rsLiaisonComs.getString("ncp"), rsLiaisonComs.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsLiaisonComs.getString("clc"), dco, null, rsLiaisonComs.getDate("dva"), tx.getTtc(), "D", "LS MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsLiaisonComs.getString("age"), rsLiaisonComs.getString("dev"), tx.getTtc(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
-//
-//							}
-//
-//						}
-						
-						
 						// Comptes de debit (client) et credit (commissions) dans des agences differentes
-						if( !StringUtils.equalsIgnoreCase(rsLiaisonAbonne.getString("age"), rsLiaisonComs.getString("age"))){
+						if( bkLiaisonAbonne != null && bkLiaisonComs != null && !StringUtils.equalsIgnoreCase(bkLiaisonAbonne.getAge(), bkLiaisonComs.getAge())){
 							
 							// Credit de la liaison du client du montant des commissions
-							if(rsLiaisonAbonne != null) eve.getEcritures().add( new bkmvti(rsLiaisonAbonne.getString("age"), rsLiaisonAbonne.getString("dev"), rsLiaisonAbonne.getString("cha"), rsLiaisonAbonne.getString("ncp"), rsLiaisonAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsLiaisonAbonne.getString("clc"), dco, null, rsLiaisonAbonne.getDate("dva"), tx.getCommissions(), "C", "LS COM MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsLiaisonAbonne.getString("age"), rsLiaisonAbonne.getString("dev"), tx.getCommissions(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+							eve.getEcritures().add( new bkmvti(bkLiaisonAbonne.getAge(), bkLiaisonAbonne.getDev(), bkLiaisonAbonne.getCha(), bkLiaisonAbonne.getNcp(), bkLiaisonAbonne.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkLiaisonAbonne.getClc(), dco, null, null, tx.getCommissions(), "C", "LS COM MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkLiaisonAbonne.getAge(), bkLiaisonAbonne.getDev(), tx.getCommissions(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 							// Debit de la liaison des commissions
-							if(rsLiaisonComs != null) eve.getEcritures().add( new bkmvti(rsLiaisonComs.getString("age"), rsLiaisonComs.getString("dev"), rsLiaisonComs.getString("cha"), rsLiaisonComs.getString("ncp"), rsLiaisonComs.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsLiaisonComs.getString("clc"), dco, null, rsLiaisonComs.getDate("dva"), tx.getCommissions(), "D", "LS COM MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsLiaisonComs.getString("age"), rsLiaisonComs.getString("dev"), tx.getCommissions(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+							eve.getEcritures().add( new bkmvti(bkLiaisonComs.getAge(), bkLiaisonComs.getDev(), bkLiaisonComs.getCha(), bkLiaisonComs.getNcp(), bkLiaisonComs.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkLiaisonComs.getClc(), dco, null, null, tx.getCommissions(), "D", "LS COM MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkLiaisonComs.getAge(), bkLiaisonComs.getDev(), tx.getCommissions(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 							
 						}
 						// Comptes de debit (client) et credit (taxes) dans des agences differentes
-						if( !StringUtils.equalsIgnoreCase(rsLiaisonAbonne.getString("age"), rsLiaisonTva.getString("age"))){
+						if( bkLiaisonAbonne != null && bkLiaisonTva != null && !StringUtils.equalsIgnoreCase(bkLiaisonAbonne.getAge(), bkLiaisonTva.getAge())){
 							
 							// Debit de la liaison du client du montant de la taxe
-							if(rsLiaisonAbonne != null) eve.getEcritures().add( new bkmvti(rsLiaisonAbonne.getString("age"), rsLiaisonAbonne.getString("dev"), rsLiaisonAbonne.getString("cha"), rsLiaisonAbonne.getString("ncp"), rsLiaisonAbonne.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsLiaisonAbonne.getString("clc"), dco, null, rsLiaisonAbonne.getDate("dva"), tx.getTaxes(), "C", "LS TAX MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsLiaisonAbonne.getString("age"), rsLiaisonAbonne.getString("dev"), tx.getTaxes(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+							eve.getEcritures().add( new bkmvti(bkLiaisonAbonne.getAge(), bkLiaisonAbonne.getDev(), bkLiaisonAbonne.getCha(), bkLiaisonAbonne.getNcp(), bkLiaisonAbonne.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkLiaisonAbonne.getClc(), dco, null, null, tx.getTaxes(), "C", "LS TAX MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkLiaisonAbonne.getAge(), bkLiaisonAbonne.getDev(), tx.getTaxes(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 							// Credit de la liaison des taxes
-							if(rsLiaisonTva != null) eve.getEcritures().add( new bkmvti(rsLiaisonTva.getString("age"), rsLiaisonTva.getString("dev"), rsLiaisonTva.getString("cha"), rsLiaisonTva.getString("ncp"), rsLiaisonTva.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsLiaisonTva.getString("clc"), dco, null, rsLiaisonTva.getDate("dva"), tx.getTaxes(), "D", "LS TAX MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsLiaisonTva.getString("age"), rsLiaisonTva.getString("dev"), tx.getTaxes(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+							if(bkLiaisonTva != null) eve.getEcritures().add( new bkmvti(bkLiaisonTva.getAge(), bkLiaisonTva.getDev(), bkLiaisonTva.getCha(), bkLiaisonTva.getNcp(), bkLiaisonTva.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkLiaisonTva.getClc(), dco, null, null, tx.getTaxes(), "D", "LS TAX MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "O", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkLiaisonTva.getAge(), bkLiaisonTva.getDev(), tx.getTaxes(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 							
 						}
 						
 
 						// Credit cpte Comissions de valeurCom
-						eve.getEcritures().add( new bkmvti(rsCpteComs.getString("age"), rsCpteComs.getString("dev"), rsCpteComs.getString("cha"), rsCpteComs.getString("ncp"), rsCpteComs.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteComs.getString("clc"), dco, null, rsCpteComs.getDate("dva"), tx.getCommissions(), "C", "COM MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteComs.getString("age"), rsCpteComs.getString("dev"), tx.getCommissions(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+						if(bkCpteComs != null) eve.getEcritures().add( new bkmvti(bkCpteComs.getAge(), bkCpteComs.getDev(), bkCpteComs.getCha(), bkCpteComs.getNcp(), bkCpteComs.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteComs.getClc(), dco, null, null, tx.getCommissions(), "C", "COM MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteComs.getAge(), bkCpteComs.getDev(), tx.getCommissions(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 
 						// Credit cpte TVA de valeurTVA
-						eve.getEcritures().add( new bkmvti(rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), rsCpteTVA.getString("cha"), rsCpteTVA.getString("ncp"), rsCpteTVA.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteTVA.getString("clc"), dco, null, rsCpteTVA.getDate("dva"), tx.getTaxes(), "C", "TAX MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteTVA.getString("age"), rsCpteTVA.getString("dev"), tx.getTaxes(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
+						if(bkCpteTVA != null) eve.getEcritures().add( new bkmvti(bkCpteTVA.getAge(), bkCpteTVA.getDev(), bkCpteTVA.getCha(), bkCpteTVA.getNcp(), bkCpteTVA.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteTVA.getClc(), dco, null, null, tx.getTaxes(), "C", "TAX MAC/" + datop + "/" + (tx.getPhoneNumber() != null ? tx.getPhoneNumber().replaceAll("237", "") : tx.getPhoneNumber()) + "/" + (s.getCustomerName().trim().length()>=8 ? s.getCustomerName().trim().toUpperCase().substring(0, 8) : s.getCustomerName().trim().toUpperCase()), "N", s.getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteTVA.getAge(), bkCpteTVA.getDev(), tx.getTaxes(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) );  numEc++;
 					}
 
 
@@ -6228,55 +6216,10 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				// Ajout de l'element a comptabiliser
 				eve.setId(now());
 				data.add(eve);
-				if(rsCpteAbonne != null) {
-					rsCpteAbonne.close(); 
-					if(rsCpteAbonne.getStatement() != null) {
-						rsCpteAbonne.getStatement().close();
-					}
-				}
-				if(rsLiaisonAbonne != null) {
-					rsLiaisonAbonne.close(); 
-					if(rsLiaisonAbonne.getStatement() != null) {
-						rsLiaisonAbonne.getStatement().close();
-					}
-				}
 				
 			}
 		}
 
-
-		// On libere les variables
-		
-		if(rsCpteComs != null) {
-			rsCpteComs.close(); 
-			if(rsCpteComs.getStatement() != null) {
-				rsCpteComs.getStatement().close();
-			}
-		}
-		if(rsCpteTVA != null) {
-			rsCpteTVA.close(); 
-			if(rsCpteTVA.getStatement() != null) {
-				rsCpteTVA.getStatement().close();
-			}
-		}
-		if(rsLiaisonComs != null) {
-			rsLiaisonComs.close(); 
-			if(rsLiaisonComs.getStatement() != null) {
-				rsLiaisonComs.getStatement().close();
-			}
-		}
-		if(rsLiaisonTva != null) {
-			rsLiaisonTva.close(); 
-			if(rsLiaisonTva.getStatement() != null) {
-				rsLiaisonTva.getStatement().close();
-			}
-		}
-		// CBS_CNX_OPTI
-		if(conCBS != null ) conCBS.close();
-		
-		// retourner le liste des evenements à comptabiliser
-		//logger.info("Data EVE: "+data.size());
-		
 		return data;
 
 	}
@@ -6388,13 +6331,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		
 		params = findParameters();
 
-		// Initialisation de DataStore d'Amplitude
-		//if(dsCBS == null) findCBSDataSystem();
-
-		// Marqueur du mode nuit
-//		boolean nuit = isModeNuit();
-		// Log
-		//logger.info("Recherche des reguls a comptabiliser!");
 		List<Transaction> list = new ArrayList<Transaction>(); 
 		List<Transaction> toRemove = new ArrayList<Transaction>(); 
 		List<String> ncps = new ArrayList<String>(); // Restrictions.eq("typeOperation",TypeOperation.COMPTABILISATION))
@@ -6403,7 +6339,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		if(values.isEmpty()) return list;
 		//for(Transaction t : values) mapTrans.put(t.getId(),t);
 		//logger.info("Traitement et recuperation de soldes");
-		String sql = "";
+		List<String> sql = new ArrayList<>(1000);
 		boolean first = false;
 		int i = 0;
 		// Recuperation des soldes
@@ -6411,14 +6347,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			// Numero de compte
 			String age = t.getAccount().split("-")[0]; //t.getAccount().trim().substring(0, 5);
 			String ncp = t.getAccount().split("-")[1]; //t.getAccount().trim().substring(5, 16);
-			//logger.info("age : "+age+" ncp : "+ncp);
-			//			mapTrans.put(t.getId(),t);
-			//			if(!mapSoldes.containsKey(t.getAccount())) {
-			//				mapSoldes.put(t.getAccount(), 0d);
-			//				lbacc.add(new BankAccount(t.getAccount().split("-")[0] , t.getAccount().split("-")[1], t.getAccount().split("-")[2]));
-			//				i++;
-			//			}
-			//		 	
+				
 			if(i==1000){
 				//logger.info(i+" trx");
 				List<AccountUtils> tmp = getMapSoldes(sql);
@@ -6427,36 +6356,24 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 					//logger.info(au.getAge()+"-"+au.getNcp()+"-"+au.getCle()+" : "+ au.getSin());
 					mapComptes.put(au.getAge()+"-"+au.getNcp()+"-"+au.getCle(), au);
 				}
-				sql = "";
+				sql.clear();
 				first = false;
 				i = 0;
 			}
-
-			if(first == true ){
-				sql = sql + " or ";
-			}
-			if(sql.trim().isEmpty()){
-				sql = sql + " (age='"+age+"' and ncp='"+ncp+"') ";   
-				first = true;
-			}else{
-				sql = sql + " (age='"+age+"' and ncp='"+ncp+"') ";
-			}
-
+			
+			sql.add(age + "-" + ncp);
+			
 			i++;
 		}
 
-		if(!sql.trim().isEmpty()){
+		if(!sql.isEmpty()){
 			List<AccountUtils> tmp = getMapSoldes(sql);
 			lau.addAll(tmp);
 			for(AccountUtils au : tmp) {
-				//logger.info(au.getAge()+"-"+au.getNcp()+"-"+au.getCle()+" : "+ au.getSin());
 				mapComptes.put(au.getAge()+"-"+au.getNcp()+"-"+au.getCle(), au);
 			}
 		}
-		////logger.info("Nbre comptes : "+ mapComptes.size());
-		//logger.info("Fin Traitement et recuperation de soldes");
-
-		//logger.info("Elimination des comptes fermes ou avec solde insuffisant et des transactions correspondantes");		
+		
 		// Elimination des comptes fermes ou avec solde insuffisant et des transactions correspondantes
 		for(String ncp : mapComptes.keySet()){
 			AccountUtils au = mapComptes.get(ncp);
@@ -6541,28 +6458,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			}
 		}
 
-		//		logger.info("Recuperation des evenements");
-		//		// Parcours de la liste des abonnements a comptabiliser 
-		//		List<bkeve> eves = mobileMoneyDAO.filter(bkeve.class, null, RestrictionsContainer.getInstance().add(Restrictions.in("transaction",values)), null, null, 0, -1);
-		//		logger.info("Fin de la recuperation des evenements");
-		//		//Long numEve = getLastEveNum(dsCBS);
-		//		logger.info("Parcours des evenements");
-		//		// Parcours de la liste des abonnements a comptabiliser
-		//		for(bkeve eve : eves) {
-		//			
-		//			Transaction tx = mapTrans.get(eve.getTransaction().getId());
-		//			tx.setDateControle(new Date());
-		//			if(tx.getSubscriber().getFirstAccount() != null){
-		//				// Si l'objet courant a ete selectionne par l'utilisateur et ses ecritures sont equilibrees
-		//				if(eve.isEquilibre()){ //if(c.isSelected() && c.getEve().isEquilibre()){
-		//					logger.info("Ajout de l'evenement "+eve.getEve());
-		//					list.add(tx);
-		//				}
-		//			}
-		//			
-		//		}
-		//		logger.info("Fin Parcours des evenements");
-		//		eves.clear();
 		mapTrans.clear();
 		mapComptes.clear();
 		mapSoldes.clear();
@@ -6586,7 +6481,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		// Recuperation de la DataSource du Core Banking
 		if(dsCBS == null) findCBSDataSystem();
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 
 		// Marqueur du mode nuit
 		boolean nuit = isModeNuit();
@@ -6707,7 +6602,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 //
 //		// Recuperation de la DataSource du Core Banking
 //		if(dsCBS == null) findCBSDataSystem();
-//		Date dco = getDateComptable(dsCBS);
+//		Date dco = getDateComptable();
 //		//Long numEve = getLastEveNum(dsCBS);
 //		Date dvaDebit = getDvaDebit();
 //		Date dvaCredit = getDvaCredit();
@@ -6962,7 +6857,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		mntD = 0d; mntC = 0d; nbrC = 0; nbrD = 0;
 		// FIN ADD
 		
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		//Long numEve = getLastEveNum(dsCBS);
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
@@ -7267,7 +7162,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		mntD = 0d; mntC = 0d; nbrC = 0; nbrD = 0;
 		// FIN ADD
 		
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		//Long numEve = getLastEveNum(dsCBS);
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
@@ -7295,25 +7190,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		logger.info("END : "+data.size());
 		
 		int nonEquilibre = 0;
-//		for(int i = 0; i <= end; i++){
-//			// Parcours de la liste des abonnements a comptabiliser
-//			logger.info("i : "+i);
-//			if(i==end){
-//				if(max*i!=data.size()){
-//					eves.addAll(mobileMoneyDAO.filter(bkeve.class, null, 
-//							RestrictionsContainer.getInstance().add(Restrictions.in("transaction", new ArrayList<Transaction>(data.subList(max*i, data.size())))), 
-//							null, null, 0, -1));
-//					//logger.info(data.size()+" EVES");
-//				}
-//			}
-//			else {
-//				eves.addAll(mobileMoneyDAO.filter(bkeve.class, null, 
-//						RestrictionsContainer.getInstance().add(Restrictions.in("transaction", new ArrayList<Transaction>(data.subList(max*i, (max*(i+1)))))), 
-//						null, null, 0, -1));
-//				//logger.info(max*(i+1)+" EVES");
-//			}
-			
-		   
+
 			eves.addAll(mobileMoneyDAO.filter(bkeve.class, null, 
 					RestrictionsContainer.getInstance().add(Restrictions.in("transaction", new ArrayList<Transaction>(data.subList(0, max)))), 
 					null, null, 0, -1));
@@ -7820,7 +7697,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		if(dsCBS == null) findCBSDataSystem();
 
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
 
@@ -8357,26 +8234,41 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	 *	Pour avoir le lien finall la fonction finale est :
 	 */
 	@Override
-	public String getLienSig(String age, String ncp, String suf, String cli, Date datec, String heurec, String utic) throws Exception {
-		String valid;
-
-		//gération clé
+	public String getLienSig(String ncp, String utic) throws Exception {
+		
+	    System.out.println("Signature: " + ncp + " Uti: " + utic);
+	    String lienSig = null;
 		double cle = genererCle();
-
-		//simple test pour se rassurer que la clé n'existe pas encore voir cette méthode plus bas
-		//while(!cleSigExiste(cle)) cle++;
-
-		// validité coe je l'ai dit date du serveur + une minute formaté
-		valid = new SimpleDateFormat("yyMMdd").format(datec) + heurec;
-
-		//insertion bksig_audit
-		insertIntoBksigAudi(age, ncp, suf, cli, datec, heurec, utic);
-
-		// insertion bksigc
-		insertIntoBksigC(cle, valid, utic, cli, ncp, suf, age);
-
+		if (dsCbs == null) findCBSServicesDataSystem();
+		if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+			
+			HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/kyc/process/geturlsignature/" + ncp + "/" + utic);
+		    getRequest.setHeader("content-type", "application/json");
+		    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+		    HttpEntity entity = null;
+		    entity = response.getEntity();
+		    
+		    if(entity != null) {
+		    	
+		    	 if(entity != null) {
+		    		 
+		    		 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					 
+					 String responseCode = json.getString("code");
+					 
+					 if ("200".equals(responseCode)) {
+						 lienSig = json.getString("data");
+						 System.out.println("Lien: " + lienSig);
+					 }
+		    		 
+		    	 }
+		    	
+		    } 
+		}
+		
 		// return du lien final 
-		return getLienSig() + new DecimalFormat("#").format(cle); // le type double cle est formaté sous forme de String sans partie décimal DecimalFormat df = new DecimalFormat("#");
+		return lienSig;
 	}
 
 	
@@ -8823,7 +8715,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		AccountInfos  cpteLiaisonAbonne = null;
 		// Initialisations
 		Long numEc = 1l;
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Date dvaDebit = getDvaDebit();
 
 		//Long numEve = getLastEveNum(dsCBS);
@@ -9687,7 +9579,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		try{
 			// Solde du compte avant operation
-			Double bal = getSolde( subs.getFirstAccount() ); //processBalanceTransaction2(msisdn);//getBalanceTransaction(msisdn, bankPin);
+			Double bal = getSolde(subs.getFirstAccount(), false); //processBalanceTransaction2(msisdn);//getBalanceTransaction(msisdn, bankPin);
 			map.put("amount", String.valueOf(bal.longValue()));
 
 			// Execution de la transaction de Pull
@@ -9729,7 +9621,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			logger.info("TRX : " + tx);
 
 			// Solde du compte après operation
-			Double balance = getSolde(subs.getFirstAccount() ); //processBalanceTransaction2(msisdn);//getBalanceTransaction(msisdn, bankPin);
+			Double balance = getSolde(subs.getFirstAccount(), false ); //processBalanceTransaction2(msisdn);//getBalanceTransaction(msisdn, bankPin);
 			map.put("amount", String.valueOf(balance.longValue()));
 
 		} catch(MoMoException me){
@@ -9751,22 +9643,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			}
 			map.put("error", me.getMessage());
 
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.PULL, phoneNumber, amount, null, trxId) ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(trxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(me.getCategory());
-//				trx.setExceptionCode(me.getCode());
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx.setTtc(round(trx.getAmount(), 0));
-//				trx = mobileMoneyDAO.save(trx);
-//			}
-			// Log de la trace
 			if(subs != null) logTraceTrxECW(trxId, msisdn, amount, subs, TypeOperation.PULL, me.getCode());
 
 		} catch (Exception e){
@@ -9775,30 +9651,9 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			map.put("statusCode", "500");
 			map.put("error", e.getMessage());
 
-			//e.printStackTrace();
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.PULL, phoneNumber, amount, null, trxId) ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(trxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(ExceptionCategory.SYSTEM);
-//				trx.setExceptionCode(ExceptionCode.BankException);
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx.setTtc(round(trx.getAmount(), 0));
-//				trx = mobileMoneyDAO.save(trx);
-//
-//				//return map;
-//			}
 			// Log de la trace
 			if(subs != null) logTraceTrxECW(trxId, msisdn, amount, subs, TypeOperation.PULL, ExceptionCode.BankException);
 		}
-
-		// Log
-//		System.err.println("[MAC LOGGER] Voici la Map Retournee pour "+ msisdn +" : " + map.toString());
 
 		return map;
 
@@ -9823,7 +9678,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		
 		try{
 			// Solde du compte avant operation
-			Double bal = getSolde( subs.getFirstAccount() );// processBalanceTransaction2(msisdn);//getBalanceTransaction(msisdn, bankPin);
+			Double bal = getSolde( subs.getFirstAccount(), false );// processBalanceTransaction2(msisdn);//getBalanceTransaction(msisdn, bankPin);
 			map.put("amount", String.valueOf(bal.longValue()));
 
 			// Execution de la transaction de Push
@@ -9834,7 +9689,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				logger.info("**************************************TRX EXISTANTE AYANT REUSSIEE ");
 				map.put("statusCode", "200");
 			}
-			
 			// Operation existante et ayant echouee
 			else{
 				logger.info("*****************************************TRX EXISTANTE AYANT ECHOUEE ");
@@ -9866,7 +9720,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			logger.info("TRX : " + tx);
 
 			// Solde du compte après operation
-			Double balance = getSolde( subs.getFirstAccount() ); //getBalanceTransaction(msisdn, bankPin);
+			Double balance = getSolde( subs.getFirstAccount(), false ); //getBalanceTransaction(msisdn, bankPin);
 			map.put("amount", String.valueOf(balance.longValue()));
 
 		} catch(MoMoException me){
@@ -9891,22 +9745,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				map.put("error", me.getMessage());
 				logger.info(me.getCode() + " : " + me.getMessage());
 			}
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.PUSH, phoneNumber, amount, null, trxId) ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(trxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(me.getCategory());
-//				trx.setExceptionCode(me.getCode());
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx.setTtc(round(trx.getAmount(), 0));
-//				trx = mobileMoneyDAO.save(trx);
-//			}
-			// Log de la trace
+			
 			if(subs != null) logTraceTrxECW(trxId, msisdn, amount, subs, TypeOperation.PUSH, me.getCode());
 
 		} catch (Exception e){
@@ -9915,23 +9754,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			map.put("statusCode", "500");
 			map.put("error", e.getMessage());
 
-			//e.printStackTrace();
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.PUSH, phoneNumber, amount, null, trxId) ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(trxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(ExceptionCategory.SYSTEM);
-//				trx.setExceptionCode(ExceptionCode.BankException);
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx.setTtc(round(trx.getAmount(), 0));
-//				trx = mobileMoneyDAO.save(trx);
-//
-//			}
 			// Log de la trace
 			if(subs != null) logTraceTrxECW(trxId, msisdn, amount, subs, TypeOperation.PUSH, ExceptionCode.BankException);
 		}
@@ -9948,7 +9770,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		Map<String, String> map = new HashMap<String, String>();
 
 		Subscriber subs = findSubscriberFromPhoneNumber(msisdn);
-
+		System.out.println("Balance subscriber: " + subs.getCustomerId());
 		// Chargement des proprietes ds la map
 		map.put("msisdn", msisdn);		
 		map.put("remoteID", "0");
@@ -9987,20 +9809,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				//logger.info(me.getCode() + " : " + me.getMessage());
 			}
 
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.BALANCE, phoneNumber, 0d, null,"") ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(mtnTrxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(ExceptionCategory.SYSTEM);
-//				trx.setExceptionCode(me.getCode());
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx = mobileMoneyDAO.save(trx);
-//			}
 			// Log de la trace
 			if(subs != null) logTraceTrxECW("", msisdn, 0d, subs, TypeOperation.BALANCE, me.getCode());
 
@@ -10010,21 +9818,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			map.put("error", e.getMessage());
 			e.printStackTrace();
 
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.BALANCE, phoneNumber, 0d, null,"") ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(mtnTrxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(ExceptionCategory.SYSTEM);
-//				trx.setExceptionCode(ExceptionCode.BankException);
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx = mobileMoneyDAO.save(trx);
-//			}
-			// Log de la trace
+			
 			if(subs != null) logTraceTrxECW("", msisdn, 0d, subs, TypeOperation.BALANCE, ExceptionCode.BankException);
 		}
 
@@ -10059,43 +9853,13 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		} catch(MoMoException me){
 
-			// Erreur Momo
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.MINISTATEMENT, phoneNumber, 0d, null,"") ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(mtnTrxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(ExceptionCategory.SYSTEM);
-//				trx.setExceptionCode(me.getCode());
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx = mobileMoneyDAO.save(trx);
-//			}
-			// Log de la trace
+			
 			if(subs != null) logTraceTrxECW("", msisdn, 0d, subs, TypeOperation.MINISTATEMENT, me.getCode());
 
 		} catch (Exception e){
 			// Erreur Systeme
 			e.printStackTrace();
 
-			// En cas d'erreur on enregistre la trace de la trx
-//			if(subs != null){
-//				String phoneNumber  = subs.getFirstPhone();
-//				RequestMessage message = new RequestMessage(TypeOperation.MINISTATEMENT, phoneNumber, 0d, null,"") ;
-//				// Formation du message Transaction 
-//				Transaction trx = new Transaction(message.getOperation(), subs, message.getAmount(), message.getAccount(), message.getPhoneNumber(), message.getTrxId());
-//				//trx.setMtnTrxId(mtnTrxId);
-//				trx.setStatus(TransactionStatus.FAILED);
-//				trx.setExceptionCategory(ExceptionCategory.SYSTEM);
-//				trx.setExceptionCode(ExceptionCode.BankException);
-//				trx.setAccount(subs.getFirstAccount());
-//				trx.setDate(new Date());
-//				trx = mobileMoneyDAO.save(trx);
-//			}
-			// Log de la trace
 			if(subs != null) logTraceTrxECW("", msisdn, 0d, subs, TypeOperation.MINISTATEMENT, ExceptionCode.BankException);
 		}
 
@@ -10167,7 +9931,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		Transaction tx = getTransactionFromRequestMessageECW( new RequestMessage(TypeOperation.BALANCE, phoneNumber, 0d, null, null) );
         logger.info("[MANAGER SOLDE: ]"+tx.getAccount());
 		// Recuperation du solde du cpteddd
-		Double solde = getSolde(tx.getAccount());
+		Double solde = getSolde(tx.getAccount(), false);
 
 		if(solde == null) throw new MoMoException(ExceptionCode.SystemCoreBankingSystemAcces, "Erreur lors de la lecture du solde du compte", ExceptionCategory.SYSTEM);
 
@@ -10695,7 +10459,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 		if(dsCBS == null) findCBSDataSystem();
 
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
 		logger.info("DCO : "+new SimpleDateFormat("dd-MM-yy").format(dco));
@@ -10713,16 +10477,19 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		}
 
 		// Recuperation du compte MTN
-		ResultSet rsCpteMTN = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(6).getQuery(), new Object[]{ params.getNumCompteMTN().split("-")[0], params.getNumCompteMTN().split("-")[1], params.getNumCompteMTN().split("-")[2] });
-
+		//ResultSet rsCpteMTN = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(6).getQuery(), new Object[]{ params.getNumCompteMTN().split("-")[0], params.getNumCompteMTN().split("-")[1], params.getNumCompteMTN().split("-")[2] });
+        Bkcom bkCpteMTN = accountInfos(params.getNumCompteMTN());
 		// Recuperation du compte MTN
-		ResultSet rsCpteDAPPull = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ params.getNcpDAPPull().split("-")[0], params.getNcpDAPPull().split("-")[1], params.getNcpDAPPull().split("-")[2] });
-
+		//ResultSet rsCpteDAPPull = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ params.getNcpDAPPull().split("-")[0], params.getNcpDAPPull().split("-")[1], params.getNcpDAPPull().split("-")[2] });
+		Bkcom bkCpteDAPPull = accountInfos(params.getNcpDAPPull());
 		// Recuperation du compte MTN
-		ResultSet rsCpteDAPPush = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ params.getNcpDAPPush().split("-")[0], params.getNcpDAPPush().split("-")[1], params.getNcpDAPPush().split("-")[2] });
-
-		if(!rsCpteMTN.next() || !rsCpteDAPPull.next() || !rsCpteDAPPush.next() ) throw new Exception("Comptes de Liaisons inexistants");
-
+		//ResultSet rsCpteDAPPush = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ params.getNcpDAPPush().split("-")[0], params.getNcpDAPPush().split("-")[1], params.getNcpDAPPush().split("-")[2] });
+		Bkcom bkCpteDAPPush = accountInfos(params.getNcpDAPPush());
+		
+		//if(!rsCpteMTN.next() || !rsCpteDAPPull.next() || !rsCpteDAPPush.next() ) throw new Exception("Comptes de Liaisons inexistants");
+		if(bkCpteMTN == null || bkCpteDAPPull == null || bkCpteDAPPush == null) throw new Exception("Comptes de Liaisons inexistants");
+		Client customerMTN = customerInfos((params.getNumCompteMTN().split("-")[1]).substring(0, 7));
+		if (customerMTN == null) throw new Exception("Comptes du partenaire MTN inexistant.");
 
 		// Poste les EC des transactions dans le CoreBanking
 		//posterTransactionsDansCoreBanking(trans, user);
@@ -10739,44 +10506,34 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		//logger.info("Lecture du dernier numero d'evenement genere OK!");
 
 		// Calcul du numero d'evenement
-		Long numEve = rs != null && rs.next() ? numEve = Long.valueOf( rs.getString("num") != null ? rs.getString("num") : "0" )  + 1 : 1l;
-
-		// Log
-		//logger.info("Calcul du prochain numero d'evenement OK!");
-
-		// Fermeture de cnx
-		if(rs != null) {
-			rs.close(); 
-			if(rs.getStatement() != null) {
-				rs.getStatement().close();
-			}
-		}
-
+		Long res = lastNumEveOpe(params.getCodeOperation());
+		Long numEve = res != null ? res : 1l;
+	
 		bkeve eve = new bkeve(null, params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEve), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), "001", Math.abs(totalPull + totalPullMarch - totalPush - totalPushMarch), "VIRMAC", new Date(), params.getCodeUtil(), 0d, 0d, 0d, Math.abs(totalPull + totalPullMarch - totalPush - totalPushMarch) );
 		eve.setEta("IG"); //eve.setEtap("VA");
 		eve.setId(now());
 		
 		if(totalPull - totalPush < 0) {
-			eve.setDebiteur( rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), rsCpteMTN.getString("clc"), rsCpteMTN.getString("cli"), rsCpteMTN.getString("nom"), rsCpteMTN.getString("ges"),  Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaCredit, rsCpteMTN.getDouble("sde"));
-			eve.setCrediteur(rsCpteDAPPull.getString("age"), rsCpteDAPPull.getString("dev"), rsCpteDAPPull.getString("ncp"), rsCpteDAPPull.getString("suf"), rsCpteDAPPull.getString("clc"), rsCpteDAPPull.getString("cli"), rsCpteDAPPull.getString("inti"), rsCpteDAPPull.getString("utic"), Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaCredit, rsCpteDAPPull.getDouble("sde"));
+			eve.setDebiteur( bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), bkCpteMTN.getClc(), bkCpteMTN.getCli(), customerMTN.getNom(), customerMTN.getCodeGes(),  Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaCredit, bkCpteMTN.getSde());
+			eve.setCrediteur(bkCpteDAPPull.getAge(), bkCpteDAPPull.getDev(), bkCpteDAPPull.getNcp(), bkCpteDAPPull.getSuf(), bkCpteDAPPull.getClc(), bkCpteDAPPull.getCli(), bkCpteDAPPull.getInti(), "", Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaCredit, bkCpteDAPPull.getSde());
 		} else {
-			eve.setCrediteur(rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), rsCpteMTN.getString("clc"), rsCpteMTN.getString("cli"), rsCpteMTN.getString("nom"), rsCpteMTN.getString("ges"),  Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaDebit, rsCpteMTN.getDouble("sde"));
-			eve.setDebiteur(rsCpteDAPPush.getString("age"), rsCpteDAPPush.getString("dev"), rsCpteDAPPush.getString("ncp"), rsCpteDAPPush.getString("suf"), rsCpteDAPPush.getString("clc"), rsCpteDAPPush.getString("cli"), rsCpteDAPPush.getString("inti"), rsCpteDAPPush.getString("utic"), Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaDebit, rsCpteDAPPush.getDouble("sde"));
+			eve.setCrediteur(bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), bkCpteMTN.getClc(), bkCpteMTN.getCli(), customerMTN.getNom(), customerMTN.getCodeGes(),  Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaDebit, bkCpteMTN.getSde());
+			eve.setDebiteur(bkCpteDAPPush.getAge(), bkCpteDAPPush.getDev(), bkCpteDAPPush.getNcp(), bkCpteDAPPush.getSuf(), bkCpteDAPPush.getClc(), bkCpteDAPPush.getCli(), bkCpteDAPPush.getInti(), "", Math.abs(totalPull - totalPush), Math.abs(totalPull - totalPush), dvaDebit, bkCpteDAPPush.getSde());
 		}
 
 		if(totalPullMarch - totalPushMarch < 0) {
-			eve.setDebiteur( rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), rsCpteMTN.getString("clc"), rsCpteMTN.getString("cli"), rsCpteMTN.getString("nom"), rsCpteMTN.getString("ges"),  Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaCredit, rsCpteMTN.getDouble("sde"));
-			eve.setCrediteur(rsCpteDAPPull.getString("age"), rsCpteDAPPull.getString("dev"), rsCpteDAPPull.getString("ncp"), rsCpteDAPPull.getString("suf"), rsCpteDAPPull.getString("clc"), rsCpteDAPPull.getString("cli"), rsCpteDAPPull.getString("inti"), rsCpteDAPPull.getString("utic"), Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaCredit, rsCpteDAPPull.getDouble("sde"));
+			eve.setDebiteur( bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), bkCpteMTN.getClc(), bkCpteMTN.getCli(), customerMTN.getNom(), customerMTN.getCodeGes(),  Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaCredit, bkCpteMTN.getSde());
+			eve.setCrediteur(bkCpteDAPPull.getAge(), bkCpteDAPPull.getDev(), bkCpteDAPPull.getNcp(), bkCpteDAPPull.getSuf(), bkCpteDAPPull.getClc(), bkCpteDAPPull.getCli(), bkCpteDAPPull.getInti(), "", Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaCredit, bkCpteDAPPull.getSde());
 		} else {
-			eve.setCrediteur(rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), rsCpteMTN.getString("clc"), rsCpteMTN.getString("cli"), rsCpteMTN.getString("nom"), rsCpteMTN.getString("ges"),  Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaDebit, rsCpteMTN.getDouble("sde"));
-			eve.setDebiteur(rsCpteDAPPush.getString("age"), rsCpteDAPPush.getString("dev"), rsCpteDAPPush.getString("ncp"), rsCpteDAPPush.getString("suf"), rsCpteDAPPush.getString("clc"), rsCpteDAPPush.getString("cli"), rsCpteDAPPush.getString("inti"), rsCpteDAPPush.getString("utic"), Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaDebit, rsCpteDAPPush.getDouble("sde"));
+			eve.setCrediteur(bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), bkCpteMTN.getClc(), bkCpteMTN.getCli(), customerMTN.getNom(), customerMTN.getCodeGes(),  Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaDebit, bkCpteMTN.getSde());
+			eve.setDebiteur(bkCpteDAPPush.getAge(), bkCpteDAPPush.getDev(), bkCpteDAPPush.getNcp(), bkCpteDAPPush.getSuf(), bkCpteDAPPush.getClc(), bkCpteDAPPush.getCli(), bkCpteDAPPush.getInti(), "", Math.abs(totalPullMarch - totalPushMarch), Math.abs(totalPullMarch - totalPushMarch), dvaDebit, bkCpteDAPPush.getSde());
 		}
 
 		// Debit du Cpte DAP des Pull
 		for(Transaction tx : trans) {
 			if(tx.getTypeOperation().equals(TypeOperation.PULL)){
 				if(!tx.getSubscriber().isMerchant()){
-					eve.getEcritures().add( new bkmvti(rsCpteDAPPull.getString("age"), rsCpteDAPPull.getString("dev"), rsCpteDAPPull.getString("cha"), rsCpteDAPPull.getString("ncp"), rsCpteDAPPull.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteDAPPull.getString("clc"), dco, null, dvaDebit, tx.getAmount(), "D", "PULL/" + new SimpleDateFormat("ddMMyyHHmmss").format(tx.getDate()) + "/" + tx.getPhoneNumber().substring(3), "N", tx.getSubscriber().getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteDAPPull.getString("age"), rsCpteDAPPull.getString("dev"), tx.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;					
+					eve.getEcritures().add( new bkmvti(bkCpteDAPPull.getAge(), bkCpteDAPPull.getDev(), bkCpteDAPPull.getCha(), bkCpteDAPPull.getNcp(), bkCpteDAPPull.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteDAPPull.getClc(), dco, null, dvaDebit, tx.getAmount(), "D", "PULL/" + new SimpleDateFormat("ddMMyyHHmmss").format(tx.getDate()) + "/" + tx.getPhoneNumber().substring(3), "N", tx.getSubscriber().getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteDAPPull.getAge(), bkCpteDAPPull.getDev(), tx.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;					
 				}else{
 					// Recuperation du compte MTN Marchand
 					PlageTransactions plg = tx.getSubscriber().getProfil();
@@ -10790,32 +10547,33 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		}
 
 		// Crédit du Cpte MTN du total des Pull
-		if(totalPull > 0) eve.getEcritures().add( new bkmvti(rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("cha"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteMTN.getString("clc"), dco, null, dvaDebit, totalPull, "C", "COMPENS/" + TypeOperation.PULL.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), totalPull, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
+		if(totalPull > 0) eve.getEcritures().add( new bkmvti(bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getCha(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteMTN.getClc(), dco, null, dvaDebit, totalPull, "C", "COMPENS/" + TypeOperation.PULL.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteMTN.getAge(), bkCpteMTN.getDev(), totalPull, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
 
 		// Debit du Cpte MTN du total des Push
-		if(totalPush > 0) eve.getEcritures().add( new bkmvti(rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("cha"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteMTN.getString("clc"), dco, null, dvaCredit, totalPush, "D", "COMPENS/" + TypeOperation.PUSH.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), totalPush, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
+		if(totalPush > 0) eve.getEcritures().add( new bkmvti(bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getCha(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteMTN.getClc(), dco, null, dvaCredit, totalPush, "D", "COMPENS/" + TypeOperation.PUSH.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteMTN.getAge(), bkCpteMTN.getDev(), totalPush, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
 
 		// Crédit du Cpte MTN du total des Pull
-		if(totalPullMarch > 0) eve.getEcritures().add( new bkmvti(rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("cha"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteMTN.getString("clc"), dco, null, dvaDebit, totalPullMarch, "C", "COMPENS MARCH/" + TypeOperation.PULL.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), totalPullMarch, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
+		if(totalPullMarch > 0) eve.getEcritures().add( new bkmvti(bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getCha(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteMTN.getClc(), dco, null, dvaDebit, totalPullMarch, "C", "COMPENS MARCH/" + TypeOperation.PULL.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteMTN.getAge(), bkCpteMTN.getDev(), totalPullMarch, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
 
 		// Debit du Cpte MTN du total des Push
-		if(totalPushMarch > 0) eve.getEcritures().add( new bkmvti(rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), rsCpteMTN.getString("cha"), rsCpteMTN.getString("ncp"), rsCpteMTN.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteMTN.getString("clc"), dco, null, dvaCredit, totalPushMarch, "D", "COMPENS MARCH/" + TypeOperation.PUSH.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteMTN.getString("age"), rsCpteMTN.getString("dev"), totalPushMarch, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
+		if(totalPushMarch > 0) eve.getEcritures().add( new bkmvti(bkCpteMTN.getAge(), bkCpteMTN.getDev(), bkCpteMTN.getCha(), bkCpteMTN.getNcp(), bkCpteMTN.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteMTN.getClc(), dco, null, dvaCredit, totalPushMarch, "D", "COMPENS MARCH/" + TypeOperation.PUSH.toString().toUpperCase() + "/" + datop, "N", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteMTN.getAge(), bkCpteMTN.getDev(), totalPushMarch, null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
 
-		ResultSet rsCpteDAPPushMarch = null;
+		//ResultSet rsCpteDAPPushMarch = null;
 
 		// Credit du DAP des Push
 		for(Transaction tx : trans) {
 			if(tx.getTypeOperation().equals(TypeOperation.PUSH)){
 				if(!tx.getSubscriber().isMerchant()){
-					eve.getEcritures().add( new bkmvti(rsCpteDAPPush.getString("age"), rsCpteDAPPush.getString("dev"), rsCpteDAPPush.getString("cha"), rsCpteDAPPush.getString("ncp"), rsCpteDAPPush.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteDAPPush.getString("clc"), dco, null, dvaCredit, tx.getAmount(), "C", "PUSH/" + new SimpleDateFormat("ddMMyyHHmmss").format(tx.getDate()) + "/" + tx.getPhoneNumber().substring(3), "N", tx.getSubscriber().getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteDAPPush.getString("age"), rsCpteDAPPush.getString("dev"), tx.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
+					eve.getEcritures().add( new bkmvti(bkCpteDAPPush.getAge(), bkCpteDAPPush.getDev(), bkCpteDAPPush.getCha(), bkCpteDAPPush.getNcp(), bkCpteDAPPush.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteDAPPush.getClc(), dco, null, dvaCredit, tx.getAmount(), "C", "PUSH/" + new SimpleDateFormat("ddMMyyHHmmss").format(tx.getDate()) + "/" + tx.getPhoneNumber().substring(3), "N", tx.getSubscriber().getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteDAPPush.getAge(), bkCpteDAPPush.getDev(), tx.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
 				}else{
 					// Recuperation du compte MTN
 					PlageTransactions plg = tx.getSubscriber().getProfil();
-					rsCpteDAPPushMarch = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ plg.getNcpDAPPush().split("-")[0], plg.getNcpDAPPush().split("-")[1], plg.getNcpDAPPush().split("-")[2] });
+					//rsCpteDAPPushMarch = executeFilterSystemQuery(dsCBS, MoMoHelper.getDefaultCBSQueries().get(8).getQuery(), new Object[]{ plg.getNcpDAPPush().split("-")[0], plg.getNcpDAPPush().split("-")[1], plg.getNcpDAPPush().split("-")[2] });
+					Bkcom bkCpteDAPPushMarch = accountInfos(plg.getNcpDAPPush());
+					//if(!rsCpteDAPPushMarch.next() ) throw new Exception("Comptes de Liaisons inexistants");
+					if(bkCpteDAPPushMarch == null) throw new Exception("Comptes de Liaisons inexistants");
 
-					if(!rsCpteDAPPushMarch.next() ) throw new Exception("Comptes de Liaisons inexistants");
-
-					eve.getEcritures().add( new bkmvti(rsCpteDAPPushMarch.getString("age"), rsCpteDAPPushMarch.getString("dev"), rsCpteDAPPushMarch.getString("cha"), rsCpteDAPPushMarch.getString("ncp"), rsCpteDAPPushMarch.getString("suf"), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), rsCpteDAPPushMarch.getString("clc"), dco, null, dvaCredit, tx.getAmount(), "C", "PUSH/" + new SimpleDateFormat("ddMMyyHHmmss").format(tx.getDate()) + "/" + tx.getPhoneNumber().substring(3), "N", tx.getSubscriber().getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, rsCpteDAPPushMarch.getString("age"), rsCpteDAPPushMarch.getString("dev"), tx.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
+					eve.getEcritures().add( new bkmvti(bkCpteDAPPushMarch.getAge(), bkCpteDAPPushMarch.getDev(), bkCpteDAPPushMarch.getCha(), bkCpteDAPPushMarch.getNcp(), bkCpteDAPPushMarch.getSuf(), params.getCodeOperation(), MoMoHelper.padText(String.valueOf(numEc), MoMoHelper.LEFT, MoMoHelper.TAILLE_CODE_EVE, "0"), null, params.getCodeUtil(), eve.getEve(), bkCpteDAPPushMarch.getClc(), dco, null, dvaCredit, tx.getAmount(), "C", "PUSH/" + new SimpleDateFormat("ddMMyyHHmmss").format(tx.getDate()) + "/" + tx.getPhoneNumber().substring(3), "N", tx.getSubscriber().getId().toString(), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, bkCpteDAPPushMarch.getAge(), bkCpteDAPPushMarch.getDev(), tx.getAmount(), null, null, null, null, null, null, null, null, eve.getNat(), "VA", null, null) ); numEc++;
 //					rsCpteDAPPushMarch = null;
 				}
 			}
@@ -10825,37 +10583,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		mobileMoneyDAO.save(eve);
 		
 		// On libere tous les ResultSet
-		if(rsCpteMTN!=null) {
-			rsCpteMTN.close(); 
-			if(rsCpteMTN!=null) {
-				rsCpteMTN.getStatement().close(); 
-			}
-		}
-		if(rsCpteDAPPull!=null) {
-			rsCpteDAPPull.close();  
-			if(rsCpteDAPPull!=null) {
-				rsCpteDAPPull.getStatement().close(); 
-			}
-		}
-		if(rsCpteDAPPush!=null) {
-			rsCpteDAPPush.close();  
-			if(rsCpteDAPPush!=null) {
-				rsCpteDAPPush.getStatement().close(); 
-			}
-		}
-		if(rsCpteDAPPushMarch!=null) {
-			rsCpteDAPPushMarch.close(); 
-			if(rsCpteDAPPushMarch!=null) {
-				rsCpteDAPPushMarch.getStatement().close(); 
-			}
-		}
-		if(rs!=null) {
-			rs.close(); 
-			if(rs!=null) {
-				rs.getStatement().close();
-			}
-		}
-		rsCpteMTN = null; rsCpteDAPPull = null; rsCpteDAPPush = null; rsCpteDAPPushMarch = null; rs = null;
 		trans.clear();
 		// CBS_CNX_OPTI
 		if(conCBS != null ) conCBS.close();
@@ -10885,32 +10612,14 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// checkGlobalConfig(); //Parameters params = findParameters();
 		params = findParameters();
 
-		// Initialisation de DataStore d'Amplitude
-		if(dsCBS == null) findCBSDataSystem();
-
-		Date dco = getDateComptable(dsCBS);
+		Date dco = getDateComptable();
 				
-		// Ouverture d'une cnx vers la BD du Core Banking
-		if(conCBS == null || conCBS.isClosed()) conCBS = getSystemConnection(dsCBS);
-
-		// Suspension temporaire du mode blocage dans la BD du Core Banking
-		if(dsCBS.getDbConnectionString().indexOf("informix") > 0) {
-			conCBS.createStatement().executeUpdate("SET ISOLATION TO DIRTY READ");
-			//conCBS.createStatement().executeUpdate("SET LOCK MODE TO WAIT");
-		}
-
 		// Initialisation du fichier a generer
 		FileWriter fw = new FileWriter(filename);
 		
-		// Desactivation du mode AUTO COMMIT
-//		conCBS.setAutoCommit(false);
-//
-//		// Initialisation d'un preparateur de requetes
-//		PreparedStatement ps = conCBS.prepareStatement(new bkmvti().getSaveQuery());
-
 		// Subscriber infos map from code client
 		Map<String,Subscriber> mapCompte = new HashMap<String, Subscriber>();
-		ResultSet rst = null;
+		//ResultSet rst = null;
 		int nb = 0;
 		// Parcours des ecritures
 		
@@ -10950,16 +10659,17 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 				}
 				else {
 					// recherche d'un compte non client
-					rst = executeFilterSystemQuery(dsCBS,MoMoHelper.getDefaultCBSQueries().get(7).getQuery(),new Object[]{mvt.getAge(),mvt.getNcp(),mvt.getClc()});
-					if(rst.next()){
-						det.setIntitule(rst.getString("inti"));
+					//rst = executeFilterSystemQuery(dsCBS,MoMoHelper.getDefaultCBSQueries().get(7).getQuery(),new Object[]{mvt.getAge(),mvt.getNcp(),mvt.getClc()});111
+					Bkcom bkRst = accountInfos(mvt.getAge() + "-" + mvt.getNcp() + "-" + mvt.getClc());
+					if(bkRst != null){
+						det.setIntitule(bkRst.getInti());
 						if(mapCompte.isEmpty()){
 							Subscriber subs = new Subscriber();
-							subs.setCustomerName(rst.getString("inti"));;
+							subs.setCustomerName(bkRst.getInti());
 							mapCompte.put(cle, subs);
 						}else if(!mapCompte.containsKey(cle)){
 							Subscriber subs = new Subscriber();
-							subs.setCustomerName(rst.getString("inti"));;
+							subs.setCustomerName(bkRst.getInti());
 							mapCompte.put(cle, subs);
 						}
 					}
@@ -10983,14 +10693,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 			// Ecriture de la ligne dans le fichier
 			fw.write(mvt.getFileLine().concat("\n"));
 		}
-		if(rst != null) {
-			rst.close(); 
-			if(rst.getStatement() != null) {
-				rst.getStatement().close(); 
-			}
-			rst = null;
-		}
-		if(conCBS != null ) conCBS.close();
+		
 		
 		// Fermeture du fichier
 		fw.flush(); fw.close();
@@ -11025,18 +10728,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 	
 	@Override
 	public List<Transaction> annulerEves(List<Transaction> transactions) throws Exception{
-		
-//		// Initialisation de DataStore d'Amplitude
-//		if(dsCBS == null) findCBSDataSystem();
-//
-//		// Ouverture d'une cnx vers la BD du Core Banking
-//		if(conCBS == null || conCBS.isClosed()) conCBS = getSystemConnection(dsCBS);
-//
-//		// Suspension temporaire du mode blocage dans la BD du Core Banking
-//		if(dsCBS.getDbConnectionString().indexOf("informix") > 0) {
-//			conCBS.createStatement().executeUpdate("SET ISOLATION TO DIRTY READ");
-//		}
-
+	
 		return cancelEvenements(transactions, dsCBS);
 	}
 		
@@ -11746,37 +11438,69 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 
 			params = findParameters();
 			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
-			Date dco = getDateComptable(dsCBS);
+			Date dco = getDateComptable();
 			Date dateDebut = DateUtils.addDays(dco, -params.getPeriodeVerifTrxCBS());
 			logger.info("PERIODE : "+dateDebut+" - "+dco);
 			
 			logger.info("CHECKING ACTIVITY !!! ");
-			String sql = "select first 1 * from bkhis where age = ? and ncp = ? and ope in LIST_CODES_OPE and dco between ? and ? order by dco desc";
-
+			//String sql = "select first 1 * from bkhis where age = ? and ncp = ? and ope in LIST_CODES_OPE and dco between ? and ? order by dco desc";
+			
 			String in = "";
 			if(params.getCodesOpeTrx() != null && !params.getCodesOpeTrx().trim().isEmpty()) {
-				for(String code : params.getCodesOpeTrx().split(",")) in += "'" + code + "'" + ", ";
+				for(String code : params.getCodesOpeTrx().split(",")) in += code + "-";
 			}
-			if(!in.isEmpty()) in = "(".concat( in.substring(0, in.length()-2) ).concat(")");
+			if(!in.isEmpty()) in = in.substring(0, in.length()-1);
+			//logger.info("isAccountActivity-request : "+in);
 			
-			ResultSet rs = executeFilterSystemQuery(dsCBS, sql.replace("LIST_CODES_OPE", in), new Object[]{ncp.split("-")[0],ncp.split("-")[1], dateDebut, dco});
-			if(rs != null && rs.next()) {
-				logger.info("ACTIVITY OK!!! ");
-				activity = true;
+			OperationDto opeDto = new OperationDto();
+			opeDto.setAgences(ncp.split("-")[0]);
+			opeDto.setComptes(ncp.split("-")[1]);
+			opeDto.setDebut(DateUtil.format(dateDebut , DateUtil.DATE_MINUS_FORMAT_SINGLE));
+			opeDto.setFin(DateUtil.format(dco , DateUtil.DATE_MINUS_FORMAT_SINGLE));
+			opeDto.setTypeOperations(in);
+			//logger.info("OperationDto-request : "+opeDto.toString());
+			String playload = null;
+			
+			playload = Shared.mapToJsonString(opeDto);
+			if(!Shared.isJSONValid(playload)) {
+				playload =  Shared.mapToJsonString(new OperationDto());
 			}
-			else logger.info("ACTIVITY KO!!! ");
 			
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if (dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				
+				HttpPost post = new HttpPost(dsCbs.getDbConnectionString()+"/transactions/process/gethistorydetail");
+				post.setHeader("content-type", "application/json");
+				post.setEntity(new StringEntity(playload , Consts.UTF_8));
+				
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(post);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 List<Bkhis> listHist = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataHis responseDataHis = Shared.mapToResponseDataHis(json);
+					 String responseCode = responseDataHis.getCode();
+						 
+					  if ("200".equals(responseCode)) {
+						
+						  listHist = responseDataHis.getData();
+						  if(!listHist.isEmpty()) {
+							  logger.info("ACTIVITY OK!!! ");
+							  activity = true;
+						  }
+						  
+					  }
+			    } 
 			}
-			// CBS_CNX_OPTI
-			if(conCBS != null ) conCBS.close();
 			
-		} catch(Exception e){}
+		} catch(Exception e){
+			e.printStackTrace();
+		}
 		
 		return activity;
 	}
@@ -11789,21 +11513,41 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		try {
 			logger.info("CHECKING NEW ACCOUNT [NCP : "+ncp.split("-")[1]+"]");
 			Date date = DateUtils.addDays(new Date(), -params.getPeriodeVerifNewNcpCBS());
-			ResultSet rs = executeFilterSystemQuery(dsCBS, "select ncp, dou from bkcom where ncp = ? and dou >= ? ", new Object[]{ncp.split("-")[1], date});
-			if(rs != null && rs.next()) {
-				logger.info("NEW ACCOUNT OK!!! ");
-				activity = true;
-			}
-			else  logger.info("NEW ACCOUNT KO!!! ");
+		//	ResultSet rs = executeFilterSystemQuery(dsCBS, "select ncp, dou from bkcom where ncp = ? and dou >= ? ", new Object[]{ncp.split("-")[1], date});hgh
 			
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
+			if(dsAIF == null) findAIFDataSystem();
+			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+				
+				String numCompte = ncp.split("-")[1];
+				
+				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/account/getlistecompte/"+numCompte.substring(0, 7));
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			 
+			    if(entity != null) {
+			    	 
+			    	 List<Account> listComptes = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataAccount responseDataAcc = Shared.mapToResponseDataAccount(json);
+					 String responseCode = responseDataAcc.getCode();
+					
+					 
+					 if ("200".equals(responseCode)) {
+						 
+						 listComptes = responseDataAcc.getDatas();
+						 for(Account account : listComptes) {
+							 
+							 if (numCompte.equalsIgnoreCase(account.getNcp()) && (account.getDou().getTime() > date.getTime())) {
+								 activity = true;
+							 }
+						 }	 
+					 } 
+			     }
 			}
-			// CBS_CNX_OPTI
-			if(conCBS != null ) conCBS.close();
 			
 		} catch(Exception e){}
 		
@@ -11818,34 +11562,63 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		params = findParameters();
 		try{
 			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
-			String req = "select * from bkeve where eta='VA' and (ncp1 = ? or ncp2 = ?) and ope in LIST_CODES_OPE ";
-			
-			logger.info("CHECKING NEW TRX!!! ");
-			
+//			if(dsCBS == null) findCBSDataSystem();
+			//String req = "select * from bkeve where eta='VA' and (ncp1 = ? or ncp2 = ?) and ope in LIST_CODES_OPE ";
+//			
 			String in = "";
 			if(params.getCodesOpeTrx() != null && !params.getCodesOpeTrx().trim().isEmpty()) {
-				for(String code : params.getCodesOpeTrx().split(",")) in += "'" + code + "'" + ", ";
+				for(String code : params.getCodesOpeTrx().split(",")) in += code + "-";
 			}
-			if(!in.isEmpty()) in = "(".concat( in.substring(0, in.length()-2) ).concat(")");
-			logger.info("LIST CODES OPE : "+in);			
-			ResultSet rs = executeFilterSystemQuery(dsCBS, req.replace("LIST_CODES_OPE", in), new Object[]{ncp.split("-")[1], ncp.split("-")[1]});
+			if(!in.isEmpty()) in = in.substring(0, in.length()-1);
 			
-			// Parcours du resultat
-			if(rs != null && rs.next()){
-				logger.info("NEW TRX OK!!! ");
-				activity = true;
-			}
-			else logger.info("NEW TRX KO!!! ");
+
+			logger.info("CHECKING NEW TRX!!! " + in);
 			
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
+			
+			OperationDto opeDto = new OperationDto();
+			opeDto.setAgences(ncp.split("-")[0]);
+			opeDto.setComptes(ncp.split("-")[1]);
+			opeDto.setTypeOperations(in);
+		//	logger.info("OperationDto-request : "+opeDto.toString());
+			String playload = null;
+			
+			playload = Shared.mapToJsonString(opeDto);
+			if(!Shared.isJSONValid(playload)) {
+				playload =  Shared.mapToJsonString(new OperationDto());
 			}
-			// CBS_CNX_OPTI
-			if(conCBS != null ) conCBS.close();
+			
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if (dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				
+				HttpPost post = new HttpPost(dsCbs.getDbConnectionString()+"/transactions/process/getevesdetail");
+				post.setHeader("content-type", "application/json");
+				post.setEntity(new StringEntity(playload , Consts.UTF_8));
+				
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(post);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 List<bkeve> listBkeve = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataBkeve responseDataBkeve = Shared.mapToResponseDataBkeve(json);
+					 String responseCode = responseDataBkeve.getCode();
+						 
+					  if ("200".equals(responseCode)) {
+						  logger.info("New Transaction jour repsonse!!! ");
+						  listBkeve = responseDataBkeve.getData();
+						  if(!listBkeve.isEmpty()) {
+							  logger.info("New Transaction jour OK!!! ");
+							  activity = true;
+						  }
+						  
+					  }
+			    } 
+			}
+			
 		} catch(Exception e){e.printStackTrace();}
 		
 		return activity;
@@ -11857,9 +11630,8 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// TODO Auto-generated method stub
 		logger.info("NCP = "+ncp);
 		List<User> users = new ArrayList<User>();
-		logger.info("BRANCH = "+gfc.getBranch());
+		//logger.info("BRANCH = "+gfc.getBranch());
 		users = getUsersDA(gfc.getBranch(), ncp.split("-")[1].substring(0, 7));
-		
 		users.add(gfc);
 		
 		return users;
@@ -11871,26 +11643,48 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		try
 		{			
 			// Initialisation de DataStore d'Amplitude
-			if(dsCBS == null) findCBSDataSystem();
 
-			String sql ="select tcli from bkcli where cli = '"+matricule+"' ";
-
-			ResultSet rs = executeFilterSystemQuery(dsCBS, sql, new Object[]{});
-			// Parcours du resultat
-			while(rs != null && rs.next()){
-				result = rs.getString("tcli").trim();
-			}
-
-			if(rs != null) {
-				rs.close(); 
-				if(rs.getStatement() != null) {
-					rs.getStatement().close();
-				}
+			//String sql ="select tcli from bkcli where cli = '"+matricule+"' ";
+			
+			// Initialisation de DataStore d'AIF
+			if(dsAIF == null) findAIFDataSystem();
+			
+			if(dsAIF != null && StringUtils.isNotBlank(dsAIF.getDbConnectionString())) {
+				
+				HttpGet getRequest = new HttpGet(dsAIF.getDbConnectionString()+"/customer/customerdetails/"+matricule);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			 
+			    if(entity != null) {
+			    	 
+			    	 List<Client> listClient = new ArrayList<>();
+			    	 String content = EntityUtils.toString(entity);
+					 JSONObject json = new JSONObject(content);
+					
+					 ResponseDataClient responseDataClt = Shared.mapToResponseDataClient(json);
+					 String responseCode = responseDataClt.getCode();
+					
+					 
+					 if ("200".equals(responseCode)) {
+						 
+						 listClient = responseDataClt.getDatas();
+						 
+						 if(!listClient.isEmpty()) {
+							 
+							 Client client = listClient.get(0);
+							 result = client.getTypeClient();
+						 } 
+						 
+					 } 
+			     }
 			}
 
 		}catch (Exception e){
 			e.printStackTrace();
 		}
+		
 		return result;
 	}
 	
@@ -12120,5 +11914,5 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		
 		return ltrx;
 	}
-
+	
 }

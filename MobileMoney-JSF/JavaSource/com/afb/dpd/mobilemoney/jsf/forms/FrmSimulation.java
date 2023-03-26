@@ -361,27 +361,13 @@ public class FrmSimulation extends AbstractPortalForm {
 				// Test des preconditions
 					if(!preConditionOK()) return;
 					
-					// Postage de l'evenement dans Delta
-					//MobileMoneyViewHelper.appManager.posterEvenementDansCoreBanking(trx);
-					
-//					if(message.getOperation().equals(TypeOperation.PULL)) 
-//						map = MobileMoneyViewHelper.appManager.processPullTransaction(message.getPhoneNumber(), message.getBankPIN(), message.getAmount(), ""	, "");
-//					else
-//						map = MobileMoneyViewHelper.appManager.processPushTransaction(message.getPhoneNumber(), message.getBankPIN(), message.getAmount(), ""	, "");
-//					RestrictionsContainer rc = RestrictionsContainer.getInstance();
-//					OrderContainer orders = OrderContainer.getInstance();
-					
+
 					if(message.getOperation().equals(TypeOperation.PULL)){
 						map = MobileMoneyViewHelper.appManager.pullTransactionECW(null, message.getPhoneNumber(), message.getAmount());
 						// Message de succes
 						if(map.get("statusCode").equals("200")) 
 							PortalInformationHelper.showInformationDialog("Transaction effectuee avec succes!\nID transaction : "+map.get("remoteID")+", \n Nouveau solde : "+map.get("amount"), InformationDialog.DIALOG_SUCCESS);
-//						else if(map.get("statusCode").equals("501")) 
-//							PortalInformationHelper.showInformationDialog(ExceptionCode.SubscriberSuspended.getValue(), InformationDialog.DIALOG_ERROR);
-//						else if(map.get("statusCode").equals("503")) 
-//							PortalInformationHelper.showInformationDialog(ExceptionCode.SubscriberInvalidAmount.getValue(), InformationDialog.DIALOG_ERROR);
-//						else if(map.get("statusCode").equals("504")) 
-//							PortalInformationHelper.showInformationDialog(ExceptionCode.BankInsufficientBalance.getValue(), InformationDialog.DIALOG_ERROR);
+
 						else
 							PortalInformationHelper.showInformationDialog("Error: " + map.get("statusCode") + " "+map.get("error"), InformationDialog.DIALOG_ERROR);
 					}
@@ -389,13 +375,7 @@ public class FrmSimulation extends AbstractPortalForm {
 						map = MobileMoneyViewHelper.appManager.pushTransactionECW(null, message.getPhoneNumber(), message.getAmount());
 						// Message de succes
 						if(map.get("statusCode").equals("200")) 
-							PortalInformationHelper.showInformationDialog("Transaction effectuee avec succes!\nID transaction : "+map.get("remoteID")+", \n Nouveau solde : "+map.get("amount"), InformationDialog.DIALOG_SUCCESS);
-//						else if(map.get("statusCode").equals("501")) 
-//							PortalInformationHelper.showInformationDialog(ExceptionCode.SubscriberSuspended.getValue(), InformationDialog.DIALOG_ERROR);
-//						else if(map.get("statusCode").equals("503")) 
-//							PortalInformationHelper.showInformationDialog(ExceptionCode.SubscriberInvalidAmount.getValue(), InformationDialog.DIALOG_ERROR);
-//						else if(map.get("statusCode").equals("504")) 
-//							PortalInformationHelper.showInformationDialog(ExceptionCode.BankInsufficientBalance.getValue(), InformationDialog.DIALOG_ERROR);
+							PortalInformationHelper.showInformationDialog("Transaction effectuee avec succes!\nID transaction : "+map.get("remoteID")+", \n Nouveau solde : "+map.get("amount"), InformationDialog.DIALOG_SUCCESS);  
 						else
 							PortalInformationHelper.showInformationDialog("Error: " + map.get("statusCode") + " "+map.get("error"), InformationDialog.DIALOG_ERROR);
 					}

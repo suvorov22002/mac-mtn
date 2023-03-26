@@ -291,9 +291,9 @@ public class FrmValidSubscriber extends AbstractPortalForm{
 			Calendar cal = new GregorianCalendar();
 			cal.setTime(new Date());
 			cal.add(Calendar.MINUTE, 5);
-			
 			// Recherche de la signature du client
-			return MobileMoneyViewHelper.appManager.getLienSig(subscriber.getFirstAccount().split("-")[0], subscriber.getFirstAccount().split("-")[1], "  ", subscriber.getCustomerId(), new Date(), new SimpleDateFormat("HHmmss").format(cal.getTime()), MobileMoneyViewHelper.getSessionUser().getLogin());
+			return MobileMoneyViewHelper.appManager.getLienSig(subscriber.getFirstAccount(), MobileMoneyViewHelper.getSessionUser().getLogin());
+			
 		} catch(Exception e){
 			
 			// Affichage de l'exception
@@ -311,13 +311,9 @@ public class FrmValidSubscriber extends AbstractPortalForm{
 			// Filtre des souscriptions
 			User user = MobileMoneyViewHelper.getSessionUser();
 			for(Subscriber s : souscriptions){
-				                                   
+				                               
 				if(s.getStatus().equals(StatutContrat.SUSPENDU)){
 					//System.out.println("Annulation de la souscription "+s.getId());
-//					s.setFacturer(false);
-//					s.setActive(false);
-//					s.setUtiSuspendu(user.getLogin());
-//					s.setDateSuspendu(new Date());
 					//Annulation cote MTN
 					MomoKYCServiceProxy proxy = new MomoKYCServiceProxy();
 			        proxy.setEndpoint(param.getUrlKYCApi());
@@ -349,45 +345,6 @@ public class FrmValidSubscriber extends AbstractPortalForm{
 					else if(unlink.getValid()!=null){
 						MobileMoneyViewHelper.appManager.annulerSouscription(s.getId(), MobileMoneyViewHelper.getSessionUser().getLogin());
 					}
-					
-					// Si on obtient une erreur
-//					if(unlinkage.contains("errorResponse") || unlinkage.contains("errorcode")){
-//						// Recuperer le message d'erreur
-//						String error = StringUtils.substringBetween(unlinkage, "errorcode=\"", "\"");
-//			        	System.out.println("Erreur : "+error);
-//			        	if(unlinkage.contains("<arguments") && unlinkage.contains("name=")){
-//							// Recuperer le message d'erreur
-//							String name = StringUtils.substringBetween(unlinkage, "name=\"", "\"");
-//				        	error = error +" ("+name+" : ";
-//				        }
-//			        	if(unlinkage.contains("<arguments") || unlinkage.contains("value=")){
-//							// Recuperer le message d'erreur
-//							String value = StringUtils.substringBetween(unlinkage, "value=\"", "\"");
-//							error = error +value+")";
-//				        }
-//			        	// Annulation deja effectue cote MTN
-//			        	if(error.contains("COULD_NOT_PERFORM_OPERATION") && error.contains("FRI not found or it has been unlinked already")){
-//			        		// Annulation cote bank
-////			        		MobileMoneyViewHelper.appDAOLocal.update(s);
-//			        		MobileMoneyViewHelper.appManager.annulerSouscription(s.getId(), MobileMoneyViewHelper.getSessionUser().getLogin());
-//			        	}
-//			        	else{
-//			        		// Initialisation du compteur
-//			    			num = 1;
-//			    			
-//			        		// Message d'information
-//				        	PortalInformationHelper.showInformationDialog("Erreur : "+error, InformationDialog.DIALOG_ERROR);
-//				        	return;
-//			        	}
-//			        }
-//					
-//					// Si on obtient la reponse attendue
-//					if(unlinkage.contains("unlinkfinancialresourceinformationresponse")){
-//						// l'annulation de l'abonnement s'est bien deroulee
-//									
-//						// Annulation cote bank
-//						MobileMoneyViewHelper.appManager.annulerSouscription(s.getId(), MobileMoneyViewHelper.getSessionUser().getLogin());
-//					}
 				}
 				// Activer l'abonnement
 				else if(s.getStatus().equals(StatutContrat.ACTIF)){
@@ -399,15 +356,13 @@ public class FrmValidSubscriber extends AbstractPortalForm{
 					client.setMatricule(s.getFirstAccount().split("-")[1].substring(0,7));
 					client.setProduit("MoMo-06");
 					String statut = MobileMoneyViewHelper.appManager.statusAbon(client);
-					statut = statut.replace('"', ' ').trim();
-					System.out.println("STATUT: "+statut);
 					
 					client.setStatut(StatusAbon.valueOf(StatusAbon.class, String.valueOf(statut)));
 					
 					if(client.getStatut().equals(StatusAbon.FACTURE)) {
 						s.setStatus(StatutContrat.ACTIF_CBS);
 					}
-					
+				     
 					// Facturer la souscription
 					MobileMoneyViewHelper.appManager.facturerSouscription(s);
 					s.setUtiValid(user.getLogin());
@@ -596,6 +551,14 @@ public class FrmValidSubscriber extends AbstractPortalForm{
 	 */
 	public void setSelectedSub(Subscriber selectedSub) {
 		this.selectedSub = selectedSub;
+		
+		User user = MobileMoneyViewHelper.getSessionUser();
+		logger.info("user--selected: "+user.getLogin()+" -- "+selectedSub.getUser().getLogin());
+		
+		if (user.getLogin().equals(selectedSub.getUser().getLogin())) {
+			PortalInformationHelper.showInformationDialog("Utilisateur de validation doit être different.", InformationDialog.DIALOG_WARNING);
+			return;
+		}
 		
 		if(this.selectedSub != null) {
 			urlSignature = getSignature(selectedSub);
