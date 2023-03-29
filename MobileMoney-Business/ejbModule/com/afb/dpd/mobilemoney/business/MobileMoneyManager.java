@@ -11680,6 +11680,95 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		return result;
 	}
 	
+public Date getDvaDebit(String date, String ncp) {
+		
+		Date dvaDate = null;
+		String pdr;
+		
+		try {
+			
+			pdr = ncp.substring(7, 10);
+			
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				System.out.println("DVA: " + dsCbs.getDbConnectionString()+"/transactions/process/formatteddvadebit/" + date +"/" + pdr);
+				HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/transactions/process/formatteddvadebit/" + date +"/" + pdr);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 if(entity != null) {
+			    		 
+			    		 String content = EntityUtils.toString(entity);
+						 JSONObject json = new JSONObject(content);
+						 System.out.println("JSONObject: " + json);
+						 String responseCode = json.getString("code");
+						 //System.out.println("responseCode: " + responseCode);
+						 if ("200".equalsIgnoreCase(responseCode)) {
+							 String datVal = json.getString("data");
+							 dvaDate = DateUtil.parse(datVal, DateUtil.DATE_TIME_MINUS_FORMAT_);
+						 }
+			    		 
+			    	 }
+			    	
+			    } 
+			}
+		}
+		catch(Exception e) {
+			e.printStackTrace();
+		}
+		
+		return dvaDate;
+	}
+    
+    public Date getDvaCredit(String date, String ncp) {
+		
+		Date dvaDate = null;
+		String pdr;
+		
+		try {
+			
+			pdr = ncp.substring(7, 10);
+			
+			if (dsCbs == null) findCBSServicesDataSystem();
+			if(dsCbs != null && StringUtils.isNotBlank(dsCbs.getDbConnectionString())) {
+				System.out.println("DVA: " + dsCbs.getDbConnectionString()+"/transactions/process/formatteddvacredit/" + date +"/" + pdr);
+				HttpGet getRequest = new HttpGet(dsCbs.getDbConnectionString()+"/transactions/process/formatteddvacredit/" + date +"/" + pdr);
+			    getRequest.setHeader("content-type", "application/json");
+			    CloseableHttpResponse response = Shared.getClosableHttpClient().execute(getRequest);
+			    HttpEntity entity = null;
+			    entity = response.getEntity();
+			    
+			    if(entity != null) {
+			    	
+			    	 if(entity != null) {
+			    		 
+			    		 String content = EntityUtils.toString(entity);
+						 JSONObject json = new JSONObject(content);
+						 System.out.println("JSONObject: " + json);
+						 String responseCode = json.getString("code");
+						 //System.out.println("responseCode: " + responseCode);
+						 if ("200".equalsIgnoreCase(responseCode)) {
+							 String datVal = json.getString("data");
+							 dvaDate = DateUtil.parse(datVal, DateUtil.DATE_TIME_MINUS_FORMAT_);
+						 }
+			    		 
+			    	 }
+			    	
+			    } 
+			}
+		}
+		catch(Exception e) {
+			e.printStackTrace();
+		}
+		
+		return dvaDate;
+	}
+
+	
 
 	@SuppressWarnings("unchecked")
 	public List<User> getUsersDA(Branch agence, String matricule){
