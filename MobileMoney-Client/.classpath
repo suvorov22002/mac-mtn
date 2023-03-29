@@ -6,10 +6,6 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/MobileMoney-JPA"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/MobileMoney-DAO"/>
 	<classpathentry kind="con" path="org.eclipse.jst.server.core.container/org.jboss.ide.eclipse.as.core.server.runtime.runtimeTarget/JBoss 4.2 Runtime"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7">
-		<attributes>
-			<attribute name="owner.project.facets" value="java"/>
-		</attributes>
-	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/jdk1.8.0_251"/>
 	<classpathentry kind="output" path="build/classes"/>
 </classpath>

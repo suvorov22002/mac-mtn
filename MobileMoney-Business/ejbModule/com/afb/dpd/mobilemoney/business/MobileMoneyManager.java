@@ -3482,8 +3482,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		// Transaction avec un mtn trx id existant trouvee : retour
 		if(transaction.getId() != null) return transaction;
 
-		// Initialisation de DataStore d'Amplitude
-		if(dsCBS == null) findCBSDataSystem();
 		// checkGlobalConfig();
 		params = findParameters();
 		
@@ -10457,8 +10455,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		int numEc = 1; 
 		String datop = new SimpleDateFormat("ddMMyyHHmm").format(new Date());
 
-		if(dsCBS == null) findCBSDataSystem();
-
 		Date dco = getDateComptable();
 		Date dvaDebit = getDvaDebit();
 		Date dvaCredit = getDvaCredit();
@@ -10499,10 +10495,6 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 		/**-------GENERATION DES EC DE COMPENSATION DANS LE COMPTE DE MTN-------**/
 		/*************************************************************************/
 
-		// Recuperation du dernier numero evenement du type operation
-		ResultSet rs = executeFilterSystemQuery(dsCBS, "select max(eve) as num from bkeve where ope=?", new Object[]{ params.getCodeOperation() }); // MoMoHelper.getDefaultCBSQueries().get(2).getQuery()
-
-		// Log
 		//logger.info("Lecture du dernier numero d'evenement genere OK!");
 
 		// Calcul du numero d'evenement
@@ -11541,7 +11533,7 @@ public class MobileMoneyManager implements IMobileMoneyManagerRemote {
 						 listComptes = responseDataAcc.getDatas();
 						 for(Account account : listComptes) {
 							 
-							 if (numCompte.equalsIgnoreCase(account.getNcp()) && (account.getDou().getTime() > date.getTime())) {
+							 if (numCompte.equalsIgnoreCase(account.getNcp()) && (account.getDou().getTime() >= date.getTime())) {
 								 activity = true;
 							 }
 						 }	 
